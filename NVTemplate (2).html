@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NV Template</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Ccircle cx='100' cy='100' r='88' fill='none' stroke='%23000' stroke-width='5.5'/%3E%3Cline x1='100' y1='42' x2='100' y2='148' stroke='%23000' stroke-width='4.5' stroke-linecap='round'/%3E%3Ccircle cx='100' cy='159' r='5' fill='%23000'/%3E%3Crect x='30' y='58' width='10' height='72' rx='1' fill='%23000'/%3E%3Crect x='80' y='58' width='10' height='72' rx='1' fill='%23000'/%3E%3Cpolygon points='30,58 40,58 90,130 80,130' fill='%23000'/%3E%3Cpolygon points='110,58 121,58 143,124 132,124' fill='%23000'/%3E%3Cpolygon points='158,58 169,58 147,124 136,124' fill='%23000'/%3E%3C/svg%3E"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Helvetica Neue',Arial,sans-serif;background:#fff;color:#000;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:#f5f5f5;border-bottom:1px solid #ccc;flex-shrink:0;}
+.hd-left{display:flex;align-items:center;gap:10px;}
+.hd-title{font-size:14px;font-weight:700;letter-spacing:0.05em;color:#000;}
+.hd-sub{font-size:10px;color:#999;margin-top:1px;}
+.controls{display:flex;align-items:center;gap:6px;padding:7px 14px;background:#f5f5f5;border-bottom:1px solid #ccc;flex-shrink:0;flex-wrap:wrap;}
+.cg{display:flex;align-items:center;gap:5px;}
+.cl{font-size:10px;color:#999;white-space:nowrap;}
+.seg{display:flex;border:1px solid #ccc;border-radius:4px;overflow:hidden;}
+.seg button{background:#fff;color:#444;border:none;padding:4px 10px;font-size:11px;cursor:pointer;transition:all 0.1s;}
+.seg button.on{background:#000;color:#fff;font-weight:600;}
+.seg button:hover:not(.on){background:#ebebeb;color:#000;}
+select,input[type=text]{background:#fff;border:1px solid #ccc;color:#000;font-size:11px;padding:4px 7px;border-radius:4px;outline:none;}
+input[type=date]{background:#fff;border:1px solid #ccc;color:#000;font-size:11px;padding:4px 7px;border-radius:4px;outline:none;}
+select:focus,input:focus{border-color:#888;}
+.btn{display:flex;align-items:center;gap:4px;padding:5px 11px;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;transition:opacity 0.15s;}
+.btn:hover{opacity:0.75;}
+.btn-black{background:#000;color:#fff;}
+.btn-gray{background:#ebebeb;color:#000;border:1px solid #ccc;}
+.btn-red{background:#fde8e8;color:#b52a2a;border:1px solid #f5c0c0;}
+.div{width:1px;height:20px;background:#ccc;margin:0 2px;}
+.canvas-area{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;background:#ebebeb;padding:16px;}
+canvas{display:block;box-shadow:0 2px 12px rgba(0,0,0,0.12);}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#000;border:1px solid #333;color:#fff;padding:7px 16px;border-radius:5px;font-size:12px;z-index:999;opacity:0;transition:opacity 0.2s;pointer-events:none;white-space:nowrap;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hd-left">
+    <svg width="26" height="26" viewBox="0 0 200 200">
+      <circle cx="100" cy="100" r="88" fill="none" stroke="#000" stroke-width="5.5"/>
+      <line x1="100" y1="42" x2="100" y2="148" stroke="#000" stroke-width="4.5" stroke-linecap="round"/>
+      <circle cx="100" cy="159" r="5" fill="#000"/>
+      <rect x="30" y="58" width="10" height="72" rx="1" fill="#000"/>
+      <rect x="80" y="58" width="10" height="72" rx="1" fill="#000"/>
+      <polygon points="30,58 40,58 90,130 80,130" fill="#000"/>
+      <polygon points="110,58 121,58 143,124 132,124" fill="#000"/>
+      <polygon points="158,58 169,58 147,124 136,124" fill="#000"/>
+    </svg>
+    <div>
+      <div class="hd-title">NV Template</div>
+      <div class="hd-sub">Chart Layout Builder</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:7px;">
+    <span style="font-size:10px;color:#444;">Ctrl+V · drag&amp;drop · click slot</span>
+    <div class="div"></div>
+    <button class="btn btn-red" onclick="clearAll()">✕ Clear</button>
+    <button class="btn btn-gray" onclick="copyToClipboard()">⧉ Copy</button>
+    <button class="btn btn-black" onclick="downloadPNG()">↓ Download PNG</button>
+  </div>
+</header>
+
+<div class="controls">
+  <div class="cg">
+    <span class="cl">Layout:</span>
+    <div class="seg" id="seg-layout">
+      <button class="on" onclick="setLayout('single',this)">Single</button>
+      <button onclick="setLayout('4in1',this)">4-in-1</button>
+    </div>
+  </div>
+  <div class="div"></div>
+  <div class="cg">
+    <span class="cl">Canvas:</span>
+    <div class="seg" id="seg-size">
+      <button class="on" onclick="setSize(1600,900,this)" title="Twitter/X">1600×900</button>
+      <button onclick="setSize(1200,675,this)" title="Compact">1200×675</button>
+      <button onclick="setSize(1080,1080,this)" title="Instagram">1080×1080</button>
+    </div>
+  </div>
+  <div class="div"></div>
+  <div class="cg" id="tf-single">
+    <span class="cl">Timeframe:</span>
+    <div class="seg" id="seg-tf">
+      <button class="on" onclick="setTF('Daily',this)">Daily</button>
+      <button onclick="setTF('H4',this)">H4</button>
+      <button onclick="setTF('H1',this)">H1</button>
+      <button onclick="setTF('5M',this)">5M</button>
+    </div>
+  </div>
+  <div class="cg" id="tf-4in1" style="display:none;">
+    <span class="cl">Labels:</span>
+    <input type="text" id="tf0" value="Daily" maxlength="8" oninput="updateSlotTF(0,this.value)" style="width:52px;" title="Top-left slot"/>
+    <input type="text" id="tf1" value="H4"    maxlength="8" oninput="updateSlotTF(1,this.value)" style="width:52px;" title="Top-right slot"/>
+    <input type="text" id="tf2" value="H1"    maxlength="8" oninput="updateSlotTF(2,this.value)" style="width:52px;" title="Bottom-left slot"/>
+    <input type="text" id="tf3" value="5M"    maxlength="8" oninput="updateSlotTF(3,this.value)" style="width:52px;" title="Bottom-right slot"/>
+  </div>
+  <div class="div"></div>
+  <div class="cg">
+    <span class="cl">Instrument:</span>
+    <input type="text" id="inp-instrument" value="EURUSD" maxlength="12" oninput="redraw()" style="width:88px;"/>
+  </div>
+  <div class="cg">
+    <span class="cl">Date:</span>
+    <input type="date" id="inp-date" oninput="redraw()"/>
+  </div>
+  <div class="div"></div>
+  <div class="cg">
+    <button class="btn btn-gray" onclick="triggerUpload()">📂 Upload Image</button>
+    <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFile(this.files[0])"/>
+  </div>
+  <div class="div"></div>
+  <div class="cg">
+    <span class="cl">Zoom:</span>
+    <input type="range" id="zoom-slider" min="20" max="100" value="50" oninput="setZoom(this.value)" style="width:80px;accent-color:#f0f0f0;"/>
+    <span id="zoom-label" class="cl" style="width:30px;">50%</span>
+  </div>
+</div>
+
+<div class="canvas-area" id="canvas-area">
+  <canvas id="c"></canvas>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── STATE ────────────────────────────────────────────────────────────────────
+// Each slot: { x, y, w, h, tf, img, imgX, imgY, imgW, imgH }
+// imgX/Y = position of image top-left relative to canvas (not slot)
+// imgW/H = rendered size of image — clipped to slot bounds
+var layout = 'single';
+var canvasW = 1600, canvasH = 900;
+var timeframe = 'Daily';
+var zoom = 0.5;
+var slots = [];
+var activeSlot = null;
+
+// Interaction state
+var action = null;
+// action types:
+//   {type:'pan',  slotIdx, startMx,startMy, startImgX,startImgY}
+//   {type:'resize', slotIdx, corner, startMx,startMy, startImgX,startImgY,startImgW,startImgH}
+
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+(function init() {
+  var today = new Date();
+  var yyyy = today.getFullYear();
+  var mm = String(today.getMonth()+1).padStart(2,'0');
+  var dd = String(today.getDate()).padStart(2,'0');
+  document.getElementById('inp-date').value = yyyy+'-'+mm+'-'+dd;
+  resetSlots();
+  applyZoom();
+  redraw();
+  bindEvents();
+})();
+
+function resetSlots() {
+  slots = [];
+  activeSlot = null;
+  if (layout === 'single') {
+    slots = [makeSlot(0, 0, canvasW, canvasH, timeframe)];
+  } else {
+    var G = 4;
+    var hw = Math.floor(canvasW/2);
+    var hh = Math.floor(canvasH/2);
+    // Read current label inputs (or use defaults)
+    var tfs = [
+      (document.getElementById('tf0') && document.getElementById('tf0').value) || 'Daily',
+      (document.getElementById('tf1') && document.getElementById('tf1').value) || 'H4',
+      (document.getElementById('tf2') && document.getElementById('tf2').value) || 'H1',
+      (document.getElementById('tf3') && document.getElementById('tf3').value) || '5M',
+    ];
+    slots = [
+      makeSlot(G,      G,      hw-G-G/2, hh-G-G/2, tfs[0]),
+      makeSlot(hw+G/2, G,      hw-G-G/2, hh-G-G/2, tfs[1]),
+      makeSlot(G,      hh+G/2, hw-G-G/2, hh-G-G/2, tfs[2]),
+      makeSlot(hw+G/2, hh+G/2, hw-G-G/2, hh-G-G/2, tfs[3]),
+    ];
+  }
+}
+
+function makeSlot(x,y,w,h,tf) {
+  return {x:x, y:y, w:w, h:h, tf:tf, img:null, imgX:x, imgY:y, imgW:w, imgH:h};
+}
+
+function applyZoom() {
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+  canvas.style.width = Math.round(canvasW*zoom)+'px';
+  canvas.style.height = Math.round(canvasH*zoom)+'px';
+}
+
+// ─── FIT IMAGE INTO SLOT ──────────────────────────────────────────────────────
+// Called when image first loaded — fit to fill slot (cover), centered
+function fitImgToSlot(s) {
+  var ir = s.img.naturalWidth / s.img.naturalHeight;
+  var sr = s.w / s.h;
+  var iw, ih;
+  if (ir > sr) { ih = s.h; iw = ih * ir; }
+  else { iw = s.w; ih = iw / ir; }
+  s.imgW = iw;
+  s.imgH = ih;
+  s.imgX = s.x + (s.w - iw) / 2;
+  s.imgY = s.y + (s.h - ih) / 2;
+}
+
+// ─── DRAW ─────────────────────────────────────────────────────────────────────
+function redraw() { drawAll(ctx, true); }
+
+function drawAll(c, showUI) {
+  c.clearRect(0, 0, canvasW, canvasH);
+  c.fillStyle = '#ffffff';
+  c.fillRect(0, 0, canvasW, canvasH);
+
+  slots.forEach(function(s, i) { drawSlot(c, s, i, showUI); });
+  drawOverlayOn(c, canvasW, canvasH);
+}
+
+function drawSlot(c, s, idx, showUI) {
+  // Clip everything to slot bounds
+  c.save();
+  c.beginPath();
+  c.rect(s.x, s.y, s.w, s.h);
+  c.clip();
+
+  if (s.img) {
+    // Draw image at its stored position/size (clipped to slot)
+    c.drawImage(s.img, s.imgX, s.imgY, s.imgW, s.imgH);
+  } else {
+    c.fillStyle = '#f8f8f8';
+    c.fillRect(s.x, s.y, s.w, s.h);
+    c.strokeStyle = '#ddd';
+    c.lineWidth = 1.5;
+    c.setLineDash([6,4]);
+    c.strokeRect(s.x+1, s.y+1, s.w-2, s.h-2);
+    c.setLineDash([]);
+    var label = layout==='4in1' ? s.tf : timeframe;
+    var fs = Math.min(22, Math.round(s.w/10));
+    c.fillStyle = '#bbb';
+    c.font = 'bold '+fs+'px Helvetica Neue,Arial';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText(label, s.x+s.w/2, s.y+s.h/2-14);
+    c.font = Math.min(13,Math.round(s.w/16))+'px Helvetica Neue,Arial';
+    c.fillText('Ctrl+V · drag · scroll to zoom', s.x+s.w/2, s.y+s.h/2+14);
+  }
+
+  c.restore(); // end clip
+
+  // Selection border (outside clip so it's always visible)
+  if (showUI && activeSlot===idx) {
+    c.strokeStyle = '#1a4fa0';
+    c.lineWidth = 2;
+    c.setLineDash([]);
+    c.strokeRect(s.x+1, s.y+1, s.w-2, s.h-2);
+
+    // Draw image resize handles if image present
+    if (s.img) drawImgHandles(c, s);
+  }
+}
+
+var HS = 9; // handle half-size in canvas px
+
+function drawImgHandles(c, s) {
+  // Handles sit at corners of the IMAGE (clamped to be visible even if image extends outside slot)
+  var corners = getImgCorners(s);
+  corners.forEach(function(cor) {
+    // Only draw handle if it's inside (or near) the slot
+    var cx = Math.max(s.x+HS, Math.min(s.x+s.w-HS, cor.x));
+    var cy = Math.max(s.y+HS, Math.min(s.y+s.h-HS, cor.y));
+    c.fillStyle = '#1a4fa0';
+    c.strokeStyle = '#fff';
+    c.lineWidth = 1.5;
+    c.beginPath();
+    c.rect(cx-HS, cy-HS, HS*2, HS*2);
+    c.fill();
+    c.stroke();
+  });
+}
+
+function getImgCorners(s) {
+  return [
+    {x:s.imgX,         y:s.imgY,         name:'tl'},
+    {x:s.imgX+s.imgW,  y:s.imgY,         name:'tr'},
+    {x:s.imgX,         y:s.imgY+s.imgH,  name:'bl'},
+    {x:s.imgX+s.imgW,  y:s.imgY+s.imgH,  name:'br'},
+  ];
+}
+
+function drawOverlayOn(c, W, H) {
+  var instrument = (document.getElementById('inp-instrument').value||'EURUSD').trim();
+  var dateVal    = document.getElementById('inp-date').value;
+  var dateStr    = dateVal ? fmtDate(dateVal) : '';
+
+  var INK        = '#000000';
+  var ALPHA_TF   = 0.28;
+  var ALPHA_INFO = 0.36;
+
+  var padH = Math.round(W * 0.014);
+  var padV = Math.round(H * 0.024);
+
+  if (layout === 'single') {
+    // ── Logo: bottom-left ────────────────────────────────────────────────
+    var logoSize = Math.round(H * 0.046);
+    drawLogoOn(c, padH, H - padV - logoSize, logoSize, INK, 1.0);
+
+    // ── Instrument · date: inline right of logo, vertically centred ──────
+    var textX = padH + logoSize + Math.round(H * 0.012);
+    var fs    = Math.round(H * 0.016);
+    c.save();
+    c.globalAlpha  = ALPHA_INFO;
+    c.font         = '400 ' + fs + 'px Helvetica Neue,Arial';
+    c.textAlign    = 'left';
+    c.textBaseline = 'middle';
+    c.fillStyle    = INK;
+    c.fillText(instrument + (dateStr ? '  ·  ' + dateStr : ''), textX, H - padV - logoSize / 2);
+    c.restore();
+
+    // ── Timeframe: bottom-right ───────────────────────────────────────────
+    c.save();
+    c.globalAlpha  = ALPHA_TF;
+    c.font         = '400 ' + fs + 'px Helvetica Neue,Arial';
+    c.textAlign    = 'right';
+    c.textBaseline = 'bottom';
+    c.fillStyle    = INK;
+    c.fillText(timeframe, W - padH, H - padV);
+    c.restore();
+
+  } else {
+    // ── 4-in-1 ───────────────────────────────────────────────────────────
+
+    // TF labels: top-left corner of each slot
+    var tfFs = Math.round(H * 0.016);
+    var tp   = Math.round(H * 0.020);
+    slots.forEach(function(s) {
+      c.save();
+      c.globalAlpha  = ALPHA_TF;
+      c.font         = '400 ' + tfFs + 'px Helvetica Neue,Arial';
+      c.textAlign    = 'left';
+      c.textBaseline = 'top';
+      c.fillStyle    = INK;
+      c.fillText(s.tf, s.x + tp * 0.55, s.y + tp * 0.45);
+      c.restore();
+    });
+
+    // ── Instrument · date: bottom-left ───────────────────────────────────
+    var bFs = Math.round(H * 0.015);
+    c.save();
+    c.globalAlpha  = ALPHA_INFO;
+    c.font         = '400 ' + bFs + 'px Helvetica Neue,Arial';
+    c.textAlign    = 'left';
+    c.textBaseline = 'bottom';
+    c.fillStyle    = INK;
+    c.fillText(instrument + (dateStr ? '  ·  ' + dateStr : ''), padH, H - padV);
+    c.restore();
+
+    // ── Logo: bottom-right corner — clean, intentional ───────────────────
+    var logoSize4 = Math.round(H * 0.038);
+    drawLogoOn(c, W - padH - logoSize4, H - padV - logoSize4, logoSize4, INK, 1.0);
+  }
+}
+
+function fmtDate(v) {
+  var p = v.split('-');
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return p[2]+' '+months[parseInt(p[1])-1]+' '+p[0];
+}
+
+// Draw the exact NV journal logo.
+// x,y = top-left corner of the bounding box. size = pixel width/height of box.
+// All coordinates are in final canvas pixels — no scale transform used.
+function drawLogoOn(c, x, y, size, ink, alpha) {
+  // Journal SVG viewBox = 0 0 200 200
+  // We map each coordinate: px = x + (svgX / 200) * size
+  var s = size / 200;
+  function mx(v) { return x + v * s; }
+  function my(v) { return y + v * s; }
+
+  c.save();
+  c.globalAlpha = (alpha !== undefined) ? alpha : 1;
+  c.strokeStyle = ink;
+  c.fillStyle   = ink;
+  c.lineCap     = 'round';
+  c.lineJoin    = 'round';
+
+  // Circle  stroke-width="5.5"
+  c.lineWidth = 5.5 * s;
+  c.beginPath();
+  c.arc(mx(100), my(100), 88 * s, 0, Math.PI * 2);
+  c.stroke();
+
+  // Vertical line  stroke-width="4.5"
+  c.lineWidth = 4.5 * s;
+  c.beginPath();
+  c.moveTo(mx(100), my(42));
+  c.lineTo(mx(100), my(148));
+  c.stroke();
+
+  // Dot at y=159
+  c.beginPath();
+  c.arc(mx(100), my(159), 5 * s, 0, Math.PI * 2);
+  c.fill();
+
+  // N — left leg   x=30 y=58 w=10 h=72
+  c.fillRect(mx(30), my(58), 10 * s, 72 * s);
+  // N — right leg  x=80 y=58 w=10 h=72
+  c.fillRect(mx(80), my(58), 10 * s, 72 * s);
+  // N — diagonal   30,58 40,58 90,130 80,130
+  c.beginPath();
+  c.moveTo(mx(30),my(58)); c.lineTo(mx(40),my(58));
+  c.lineTo(mx(90),my(130)); c.lineTo(mx(80),my(130));
+  c.closePath(); c.fill();
+
+  // V — left stroke   110,58 121,58 143,124 132,124
+  c.beginPath();
+  c.moveTo(mx(110),my(58)); c.lineTo(mx(121),my(58));
+  c.lineTo(mx(143),my(124)); c.lineTo(mx(132),my(124));
+  c.closePath(); c.fill();
+
+  // V — right stroke  158,58 169,58 147,124 136,124
+  c.beginPath();
+  c.moveTo(mx(158),my(58)); c.lineTo(mx(169),my(58));
+  c.lineTo(mx(147),my(124)); c.lineTo(mx(136),my(124));
+  c.closePath(); c.fill();
+
+  c.restore();
+}
+
+// ─── MOUSE EVENTS ─────────────────────────────────────────────────────────────
+function bindEvents() {
+  document.addEventListener('paste', function(e) {
+    var items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (var i=0;i<items.length;i++) {
+      if (items[i].type.startsWith('image/')) {
+        var f = items[i].getAsFile();
+        if (f) { loadImg(f); break; }
+      }
+    }
+  });
+
+  canvas.addEventListener('dragover', function(e){ e.preventDefault(); canvas.style.outline='2px solid #1a4fa0'; });
+  canvas.addEventListener('dragleave', function(){ canvas.style.outline=''; });
+  canvas.addEventListener('drop', function(e){
+    e.preventDefault(); canvas.style.outline='';
+    var f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) loadImg(f);
+  });
+
+  canvas.addEventListener('mousedown', onDown);
+  canvas.addEventListener('mousemove', onMove);
+  canvas.addEventListener('mouseup', onUp);
+  canvas.addEventListener('mouseleave', onUp);
+
+  // Scroll to zoom image within slot
+  canvas.addEventListener('wheel', onWheel, {passive:false});
+}
+
+function xy(e) {
+  var r = canvas.getBoundingClientRect();
+  return { x:(e.clientX-r.left)/zoom, y:(e.clientY-r.top)/zoom };
+}
+
+function slotAt(x,y) {
+  for (var i=slots.length-1;i>=0;i--) {
+    var s=slots[i];
+    if (x>=s.x && x<=s.x+s.w && y>=s.y && y<=s.y+s.h) return i;
+  }
+  return -1;
+}
+
+// Check if point is near an image corner handle for the active slot
+function imgCornerAt(x,y) {
+  if (activeSlot===null) return null;
+  var s = slots[activeSlot];
+  if (!s.img) return null;
+  var corners = getImgCorners(s);
+  var HIT = HS + 4;
+  for (var i=0;i<corners.length;i++) {
+    var cor = corners[i];
+    // Use clamped position (same as drawImgHandles)
+    var cx = Math.max(s.x+HS, Math.min(s.x+s.w-HS, cor.x));
+    var cy = Math.max(s.y+HS, Math.min(s.y+s.h-HS, cor.y));
+    if (Math.abs(x-cx)<=HIT && Math.abs(y-cy)<=HIT) return cor.name;
+  }
+  return null;
+}
+
+function onDown(e) {
+  var p = xy(e);
+
+  // Check image corner resize handles first
+  var cor = imgCornerAt(p.x, p.y);
+  if (cor) {
+    var s = slots[activeSlot];
+    action = {type:'resize', slotIdx:activeSlot, corner:cor,
+              startMx:p.x, startMy:p.y,
+              startImgX:s.imgX, startImgY:s.imgY,
+              startImgW:s.imgW, startImgH:s.imgH,
+              aspectRatio: s.imgW / s.imgH};
+    return;
+  }
+
+  var idx = slotAt(p.x, p.y);
+  if (idx >= 0) {
+    activeSlot = idx;
+    var s2 = slots[idx];
+    if (s2.img) {
+      action = {type:'pan', slotIdx:idx, startMx:p.x, startMy:p.y, startImgX:s2.imgX, startImgY:s2.imgY};
+      canvas.style.cursor = 'grabbing';
+    }
+    redraw();
+  } else {
+    activeSlot = null;
+    redraw();
+  }
+}
+
+function onMove(e) {
+  var p = xy(e);
+
+  if (action && action.type === 'resize') {
+    var a = action;
+    var s = slots[a.slotIdx];
+    var dx = p.x - a.startMx;
+    var dy = p.y - a.startMy;
+    var MIN = 40;
+    // Resize image while preserving aspect ratio (driven by the larger delta)
+    var cor = a.corner;
+    var newW, newH, newX, newY;
+
+    if (cor === 'br') {
+      newW = Math.max(MIN, a.startImgW + dx);
+      newH = newW / a.aspectRatio;
+      newX = a.startImgX; newY = a.startImgY;
+    } else if (cor === 'bl') {
+      newW = Math.max(MIN, a.startImgW - dx);
+      newH = newW / a.aspectRatio;
+      newX = a.startImgX + a.startImgW - newW; newY = a.startImgY;
+    } else if (cor === 'tr') {
+      newW = Math.max(MIN, a.startImgW + dx);
+      newH = newW / a.aspectRatio;
+      newX = a.startImgX; newY = a.startImgY + a.startImgH - newH;
+    } else { // tl
+      newW = Math.max(MIN, a.startImgW - dx);
+      newH = newW / a.aspectRatio;
+      newX = a.startImgX + a.startImgW - newW;
+      newY = a.startImgY + a.startImgH - newH;
+    }
+    s.imgW = newW; s.imgH = newH; s.imgX = newX; s.imgY = newY;
+    redraw(); return;
+  }
+
+  if (action && action.type === 'pan') {
+    var a2 = action;
+    var s2 = slots[a2.slotIdx];
+    s2.imgX = a2.startImgX + (p.x - a2.startMx);
+    s2.imgY = a2.startImgY + (p.y - a2.startMy);
+    redraw(); return;
+  }
+
+  // Cursor hints
+  var cor2 = imgCornerAt(p.x, p.y);
+  if (cor2) {
+    canvas.style.cursor = (cor2==='br'||cor2==='tl') ? 'nwse-resize' : 'nesw-resize';
+    return;
+  }
+  var idx = slotAt(p.x, p.y);
+  if (idx>=0 && slots[idx].img) canvas.style.cursor = 'grab';
+  else canvas.style.cursor = 'default';
+}
+
+function onUp() {
+  action = null;
+  canvas.style.cursor = 'default';
+}
+
+// Scroll wheel: zoom image within its slot, anchored to mouse position
+function onWheel(e) {
+  e.preventDefault();
+  var p = xy(e);
+  var idx = slotAt(p.x, p.y);
+  if (idx < 0) return;
+  var s = slots[idx];
+  if (!s.img) return;
+  activeSlot = idx;
+
+  var factor = e.deltaY < 0 ? 1.06 : 0.94;
+  var MIN = 40;
+  var newW = Math.max(MIN, s.imgW * factor);
+  var newH = newW / (s.imgW / s.imgH);
+
+  // Anchor zoom to mouse position
+  var mx = p.x, my = p.y;
+  s.imgX = mx - (mx - s.imgX) * (newW / s.imgW);
+  s.imgY = my - (my - s.imgY) * (newH / s.imgH);
+  s.imgW = newW;
+  s.imgH = newH;
+  redraw();
+}
+
+// ─── IMAGE LOAD ───────────────────────────────────────────────────────────────
+function loadImg(file) {
+  var url = URL.createObjectURL(file);
+  var img = new Image();
+  img.onload = function() {
+    var target = 0;
+    if (layout==='4in1') {
+      if (activeSlot!==null) { target=activeSlot; }
+      else { var emp=slots.findIndex(function(s){return !s.img;}); target=emp>=0?emp:0; }
+    } else {
+      target = activeSlot!==null ? activeSlot : 0;
+    }
+    slots[target].img = img;
+    fitImgToSlot(slots[target]);
+    activeSlot = target;
+    redraw();
+    toast('Image loaded → slot '+(target+1)+' · drag to pan · scroll to zoom · corner to resize');
+  };
+  img.src = url;
+}
+
+function triggerUpload(){ document.getElementById('file-input').click(); }
+function handleFile(f){ if(f&&f.type.startsWith('image/')) loadImg(f); }
+
+// ─── CONTROLS ─────────────────────────────────────────────────────────────────
+function setLayout(l,btn) {
+  layout=l;
+  segOn('seg-layout',btn);
+  document.getElementById('tf-single').style.display = l==='single' ? 'flex' : 'none';
+  document.getElementById('tf-4in1').style.display   = l==='4in1'   ? 'flex' : 'none';
+  resetSlots(); applyZoom(); redraw();
+}
+
+function updateSlotTF(idx, val) {
+  if (slots[idx]) { slots[idx].tf = val; redraw(); }
+}
+
+function setSize(w,h,btn) {
+  canvasW=w; canvasH=h;
+  segOn('seg-size',btn);
+  resetSlots(); applyZoom(); redraw();
+}
+
+function setTF(tf,btn) {
+  timeframe=tf;
+  segOn('seg-tf',btn);
+  if (layout==='single' && slots.length>0) slots[0].tf=tf;
+  redraw();
+}
+
+function setZoom(v) {
+  zoom=parseInt(v)/100;
+  document.getElementById('zoom-label').textContent=v+'%';
+  canvas.style.width=Math.round(canvasW*zoom)+'px';
+  canvas.style.height=Math.round(canvasH*zoom)+'px';
+}
+
+function segOn(id,btn) {
+  document.querySelectorAll('#'+id+' button').forEach(function(b){b.classList.remove('on');});
+  btn.classList.add('on');
+}
+
+function clearAll(){ resetSlots(); redraw(); toast('Cleared'); }
+
+// ─── EXPORT ───────────────────────────────────────────────────────────────────
+function buildExport() {
+  var off = document.createElement('canvas');
+  off.width = canvasW; off.height = canvasH;
+  var oc = off.getContext('2d');
+  drawAll(oc, false); // showUI=false
+  return off;
+}
+
+function downloadPNG() {
+  var off = buildExport();
+  var inst = (document.getElementById('inp-instrument').value||'EURUSD').trim();
+  var dt = document.getElementById('inp-date').value||'chart';
+  var tf = layout==='single' ? timeframe : '4in1';
+  var fname = inst+'_'+tf+'_'+dt+'.png';
+  off.toBlob(function(blob){
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=fname; a.click();
+    toast('Downloaded: '+fname);
+  },'image/png');
+}
+
+function copyToClipboard() {
+  var off = buildExport();
+  off.toBlob(function(blob){
+    if (navigator.clipboard && navigator.clipboard.write) {
+      navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(function(){
+        toast('Copied to clipboard ✓');
+      }).catch(function(){ openBlob(blob); });
+    } else { openBlob(blob); }
+  },'image/png');
+}
+
+function openBlob(blob) {
+  window.open(URL.createObjectURL(blob),'_blank');
+  toast('Opened in new tab — save manually');
+}
+
+// ─── KEYBOARD ─────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', function(e){
+  var tag = document.activeElement.tagName;
+  if (e.key==='Escape') { activeSlot=null; redraw(); return; }
+  if ((e.key==='Delete'||e.key==='Backspace') && tag!=='INPUT') {
+    if (activeSlot!==null) {
+      slots[activeSlot].img=null;
+      redraw(); toast('Image removed');
+    }
+    return;
+  }
+  // Arrow keys: nudge image position within slot
+  if (activeSlot!==null && tag!=='INPUT') {
+    var s = slots[activeSlot];
+    if (!s.img) return;
+    var step = e.shiftKey ? 10 : 1;
+    if (e.key==='ArrowLeft')  { s.imgX-=step; redraw(); e.preventDefault(); }
+    if (e.key==='ArrowRight') { s.imgX+=step; redraw(); e.preventDefault(); }
+    if (e.key==='ArrowUp')    { s.imgY-=step; redraw(); e.preventDefault(); }
+    if (e.key==='ArrowDown')  { s.imgY+=step; redraw(); e.preventDefault(); }
+    // +/- keys to zoom image
+    if (e.key==='+'||e.key==='=') {
+      var cx=s.x+s.w/2, cy=s.y+s.h/2, f=1.05;
+      s.imgX=cx-(cx-s.imgX)*f; s.imgY=cy-(cy-s.imgY)*f;
+      s.imgW*=f; s.imgH*=f; redraw(); e.preventDefault();
+    }
+    if (e.key==='-') {
+      var cx2=s.x+s.w/2, cy2=s.y+s.h/2, f2=0.95;
+      s.imgX=cx2-(cx2-s.imgX)*f2; s.imgY=cy2-(cy2-s.imgY)*f2;
+      s.imgW*=f2; s.imgH*=f2; redraw(); e.preventDefault();
+    }
+  }
+});
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+var _tt;
+function toast(msg){
+  var el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(_tt); _tt=setTimeout(function(){el.classList.remove('show');},3000);
+}
+</script>
+</body>
+</html>
