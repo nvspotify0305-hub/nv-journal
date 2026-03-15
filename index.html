@@ -4304,8 +4304,37 @@ function NVJournal() {
   var _useStateAI = React.useState(false), aiNotesLoading = _useStateAI[0], setAiNotesLoading = _useStateAI[1];
 
   // ── Macro fetch ──
+  // ── Cloudflare Worker URL — single source of truth ──
+  var WORKER_URL = "https://nv-macro.nv-trading23.workers.dev";
+
+  function processWorkerData(raw) {
+    var fx = raw.fx || {};
+    var gold = raw.gold || null;
+    var news = raw.news || [];
+    var curs = ["USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD"];
+    var strength = {}; curs.forEach(function(c){ strength[c]=0; });
+    var pairMap = [
+      ["EURUSD",1,"EUR",-1,"USD"],["GBPUSD",1,"GBP",-1,"USD"],["USDJPY",-1,"JPY",1,"USD"],
+      ["USDCHF",-1,"CHF",1,"USD"],["AUDUSD",1,"AUD",-1,"USD"],["USDCAD",-1,"CAD",1,"USD"],
+      ["EURGBP",1,"EUR",-1,"GBP"],["GBPJPY",1,"GBP",-1,"JPY"],["EURJPY",1,"EUR",-1,"JPY"],
+      ["CADJPY",1,"CAD",-1,"JPY"],["EURCAD",1,"EUR",-1,"CAD"],["GBPCHF",1,"GBP",-1,"CHF"],
+    ];
+    pairMap.forEach(function(pm){ if(fx[pm[0]]){ strength[pm[2]]+=pm[1]; strength[pm[4]]+=pm[3]; } });
+    var vals = Object.values(strength);
+    var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals), range=mx-mn||1;
+    var normStr = {}; curs.forEach(function(c){ normStr[c]=Math.round(((strength[c]-mn)/range)*100); });
+    var riskScore=0;
+    if(gold && gold.rate>2000) riskScore++;
+    if(fx.USDJPY && fx.USDJPY.rate>150) riskScore++;
+    if(normStr.USD>60) riskScore++;
+    if(normStr.CHF>60) riskScore++;
+    var riskLabel = riskScore>=3?"Risk-Off":riskScore<=1?"Risk-On":"Neutral";
+    var euBias = normStr.EUR>normStr.USD?"Long":"Short";
+    var gbBias = normStr.GBP>normStr.USD?"Long":"Short";
+    return { fx:fx, gold:gold, news:news, strength:normStr, riskLabel:riskLabel, riskScore:riskScore, euBias:euBias, gbBias:gbBias };
+  }
+
   function fetchMacroData() {
-    if (!avKey.trim()) { setMacroError("Enter your Alpha Vantage API key in Settings \u2699 to load live data."); return; }
     // Check localStorage cache (4hr TTL)
     try {
       var cached = localStorage.getItem("nv_macro_cache");
@@ -4319,76 +4348,18 @@ function NVJournal() {
       }
     } catch(e) {}
     setMacroLoading(true); setMacroError("");
-    var AV = "https://www.alphavantage.co/query";
-    var k = avKey.trim();
-    var delay = function(ms){ return new Promise(function(r){setTimeout(r,ms);}); };
     (async function() {
       try {
-        var fx = {};
-        var pairs = [["EUR","USD"],["GBP","USD"],["USD","JPY"],["USD","CHF"],["AUD","USD"],["USD","CAD"]];
-        for (var i=0; i<pairs.length; i++) {
-          var from=pairs[i][0], to=pairs[i][1];
-          try {
-            var r = await fetch(AV+"?function=CURRENCY_EXCHANGE_RATE&from_currency="+from+"&to_currency="+to+"&apikey="+k);
-            var d = await r.json();
-            var info = d["Realtime Currency Exchange Rate"];
-            if (info) fx[from+to] = { rate: parseFloat(info["5. Exchange Rate"]), time: info["6. Last Refreshed"] };
-          } catch(e) {}
-          await delay(220);
-        }
-        if (fx.EURUSD && fx.GBPUSD) fx.EURGBP = { rate: +(fx.EURUSD.rate/fx.GBPUSD.rate).toFixed(5), derived:true };
-        if (fx.GBPUSD && fx.USDJPY) fx.GBPJPY = { rate: +(fx.GBPUSD.rate*fx.USDJPY.rate).toFixed(3), derived:true };
-        if (fx.EURUSD && fx.USDJPY) fx.EURJPY = { rate: +(fx.EURUSD.rate*fx.USDJPY.rate).toFixed(3), derived:true };
-        if (fx.USDCAD && fx.USDJPY) fx.CADJPY = { rate: +(fx.USDJPY.rate/fx.USDCAD.rate).toFixed(3), derived:true };
-        if (fx.EURUSD && fx.USDCAD) fx.EURCAD = { rate: +(fx.EURUSD.rate*fx.USDCAD.rate).toFixed(5), derived:true };
-        if (fx.GBPUSD && fx.USDCHF) fx.GBPCHF = { rate: +(fx.GBPUSD.rate*fx.USDCHF.rate).toFixed(5), derived:true };
-        if (fx.AUDUSD) fx.NZDUSD = { rate: +(fx.AUDUSD.rate*0.922).toFixed(5), derived:true };
-        var gold = null;
-        try {
-          var gr = await fetch(AV+"?function=CURRENCY_EXCHANGE_RATE&from_currency=XAU&to_currency=USD&apikey="+k);
-          var gd = await gr.json();
-          var gi = gd["Realtime Currency Exchange Rate"];
-          if (gi) gold = { rate: parseFloat(gi["5. Exchange Rate"]) };
-          await delay(220);
-        } catch(e) {}
-        var news = [];
-        try {
-          var nr = await fetch(AV+"?function=NEWS_SENTIMENT&tickers=FOREX:USD,FOREX:EUR,FOREX:GBP&limit=10&apikey="+k);
-          var nd = await nr.json();
-          if (nd.feed) news = nd.feed.slice(0,8).map(function(n){
-            var score = parseFloat(n.overall_sentiment_score||0);
-            var label = score>0.15?"Bullish":score<-0.15?"Bearish":"Neutral";
-            var tickers = (n.ticker_sentiment||[]).map(function(t){return t.ticker;}).join(" ");
-            var cur = tickers.includes("FOREX:GBP")?"GBP":tickers.includes("FOREX:EUR")?"EUR":"USD";
-            return { title:n.title, source:n.source, score:score, label:label, cur:cur };
-          });
-        } catch(e) {}
-        var curs = ["USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD"];
-        var strength = {}; curs.forEach(function(c){ strength[c]=0; });
-        var pairMap = [
-          ["EURUSD",1,"EUR",-1,"USD"],["GBPUSD",1,"GBP",-1,"USD"],["USDJPY",-1,"JPY",1,"USD"],
-          ["USDCHF",-1,"CHF",1,"USD"],["AUDUSD",1,"AUD",-1,"USD"],["USDCAD",-1,"CAD",1,"USD"],
-          ["EURGBP",1,"EUR",-1,"GBP"],["GBPJPY",1,"GBP",-1,"JPY"],["EURJPY",1,"EUR",-1,"JPY"],
-          ["CADJPY",1,"CAD",-1,"JPY"],["EURCAD",1,"EUR",-1,"CAD"],["GBPCHF",1,"GBP",-1,"CHF"],
-        ];
-        pairMap.forEach(function(pm){ if(fx[pm[0]]){ strength[pm[2]]+=pm[1]; strength[pm[4]]+=pm[3]; } });
-        var vals = Object.values(strength);
-        var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals), range=mx-mn||1;
-        var normStr = {}; curs.forEach(function(c){ normStr[c]=Math.round(((strength[c]-mn)/range)*100); });
-        var riskScore=0;
-        if(gold && gold.rate>2000) riskScore++;
-        if(fx.USDJPY && fx.USDJPY.rate>150) riskScore++;
-        if(normStr.USD>60) riskScore++;
-        if(normStr.CHF>60) riskScore++;
-        var riskLabel = riskScore>=3?"Risk-Off":riskScore<=1?"Risk-On":"Neutral";
-        var euBias = normStr.EUR>normStr.USD?"Long":"Short";
-        var gbBias = normStr.GBP>normStr.USD?"Long":"Short";
-        var result = { fx:fx, gold:gold, news:news, strength:normStr, riskLabel:riskLabel, riskScore:riskScore, euBias:euBias, gbBias:gbBias };
+        var r = await fetch(WORKER_URL);
+        if (!r.ok) throw new Error("Worker returned " + r.status);
+        var raw = await r.json();
+        if (raw.error) throw new Error(raw.error);
+        var result = processWorkerData(raw);
         setMacroData(result);
         var now = Date.now();
         setMacroTs(new Date(now).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})+" Dublin");
         try { localStorage.setItem("nv_macro_cache", JSON.stringify({ts:now, data:result})); } catch(e) {}
-      } catch(e) { setMacroError("Fetch failed: "+e.message); }
+      } catch(e) { setMacroError("Could not load macro data: "+e.message); }
       setMacroLoading(false);
     })();
   }
@@ -9639,12 +9610,11 @@ function NVJournal() {
         }, macroLoading ? "\u29f3 Loading..." : "\u21bb Load Data")
       )
     ),
-    !avKey.trim() && /*#__PURE__*/React.createElement("div", {
-      style:{padding:"14px 18px",background:isDark?"#1a1000":"#fffbeb",border:"1px solid ".concat(C.yellow),borderRadius:10,fontSize:12,color:C.yellow}
-    }, "\u26a0 Add your free Alpha Vantage API key in Settings \u2699 to enable live data."),
-    macroError && /*#__PURE__*/React.createElement("div", {
-      style:{padding:"10px 14px",background:isDark?"#1a0000":"#fff0f0",border:"1px solid ".concat(C.red),borderRadius:8,fontSize:11,color:C.red}
-    }, macroError),
+    !macroData && !macroLoading && /*#__PURE__*/React.createElement(Card, null,
+      /*#__PURE__*/React.createElement("div", { style:{textAlign:"center",padding:"40px 0",color:C.textDim,fontSize:12} },
+        "Click \u201cLoad Data\u201d to fetch live macro data"
+      )
+    )
     /*#__PURE__*/React.createElement("div", { style:{display:"flex",gap:6} },
       [["fx","FX Majors"],["cross","FX Crosses"],["commodities","Commodities"],["futures","Futures"]].map(function(f){
         return /*#__PURE__*/React.createElement("button", { key:f[0], type:"button", onClick:function(){ setMacroFilter(f[0]); },
@@ -9654,6 +9624,9 @@ function NVJournal() {
         }, f[1]);
       })
     ),
+    macroError && /*#__PURE__*/React.createElement("div", {
+      style:{padding:"10px 14px",background:isDark?"#1a0000":"#fff0f0",border:"1px solid ".concat(C.red),borderRadius:8,fontSize:11,color:C.red}
+    }, macroError),
     macroData && /*#__PURE__*/React.createElement(Card, null,
       /*#__PURE__*/React.createElement("span", { className:"lbl" }, "Pair Bias \u2014 Your Instruments"),
       /*#__PURE__*/React.createElement("div", { style:{display:"flex",flexDirection:"column",gap:8,marginTop:8} },
