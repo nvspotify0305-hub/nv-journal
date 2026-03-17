@@ -99,12 +99,28 @@ function _sbLoad() {
   }));
   return _sbLoad.apply(this, arguments);
 }
+// ─── OFFLINE SYNC QUEUE ───────────────────────────────────────────────────────
+var NV_QUEUE_KEY = "nv_sync_queue";
+function nvQueuePush(tbl, rec) {
+  try {
+    var q = JSON.parse(localStorage.getItem(NV_QUEUE_KEY) || "[]");
+    var filtered = q.filter(function(e) { return !(e.tbl === tbl && e.rec.id === rec.id); });
+    filtered.push({ tbl: tbl, rec: rec });
+    localStorage.setItem(NV_QUEUE_KEY, JSON.stringify(filtered));
+  } catch(e) {}
+}
+function nvQueueGet() {
+  try { return JSON.parse(localStorage.getItem(NV_QUEUE_KEY) || "[]"); } catch(e) { return []; }
+}
+function nvQueueClear() {
+  try { localStorage.removeItem(NV_QUEUE_KEY); } catch(e) {}
+}
 function sbSave(_x2, _x3) {
   return _sbSave.apply(this, arguments);
 }
 function _sbSave() {
   _sbSave = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee1(tbl, rec) {
-    var _t3;
+    var _t3, res;
     return _regenerator().w(function (_context1) {
       while (1) switch (_context1.p = _context1.n) {
         case 0:
@@ -121,12 +137,15 @@ function _sbSave() {
             })
           });
         case 1:
+          res = _context1.v;
+          if (!res.ok) { nvQueuePush(tbl, rec); }
           _context1.n = 3;
           break;
         case 2:
           _context1.p = 2;
           _t3 = _context1.v;
-          console.warn("sbSave failed", _t3);
+          console.warn("sbSave failed — queued", _t3);
+          nvQueuePush(tbl, rec);
         case 3:
           return _context1.a(2);
       }
@@ -4091,6 +4110,37 @@ function NVJournal() {
     _useState42 = _slicedToArray(_useState41, 2),
     syncError = _useState42[0],
     setSyncError = _useState42[1];
+  var _useState41b = useState(function() { return nvQueueGet().length > 0; }),
+    _useState42b = _slicedToArray(_useState41b, 2),
+    pendingSync = _useState42b[0],
+    setPendingSync = _useState42b[1];
+  useEffect(function() {
+    var interval = setInterval(function() {
+      var q = nvQueueGet();
+      setPendingSync(q.length > 0);
+      if (!navigator.onLine || q.length === 0) return;
+      Promise.all(q.map(function(e) {
+        return fetch(SB_URL + "/rest/v1/" + e.tbl, {
+          method: "POST",
+          headers: _objectSpread(_objectSpread({}, SBH), {}, {
+            "Prefer": "resolution=merge-duplicates,return=representation"
+          }),
+          body: JSON.stringify({ id: e.rec.id, data: e.rec })
+        }).then(function(r) { return r.ok ? e : null; })
+          .catch(function() { return null; });
+      })).then(function(results) {
+        var failed = q.filter(function(e, i) { return results[i] === null; });
+        if (failed.length === 0) {
+          nvQueueClear();
+          setPendingSync(false);
+        } else {
+          try { localStorage.setItem(NV_QUEUE_KEY, JSON.stringify(failed)); } catch(ex) {}
+          setPendingSync(true);
+        }
+      });
+    }, 30000);
+    return function() { return clearInterval(interval); };
+  }, []);
   useEffect(function () {
     try {
       localStorage.setItem("nv_trades_v5", JSON.stringify(trades));
@@ -7553,20 +7603,17 @@ function NVJournal() {
     style: {
       color: C.accent
     }
-  }, clockStr)), syncing && /*#__PURE__*/React.createElement("span", {
+  }, clockStr)), /*#__PURE__*/React.createElement("span", {
+    title: syncing ? "Syncing\u2026" : pendingSync ? "Unsynced trades queued" : syncError ? "Supabase unreachable" : "Synced",
     style: {
-      fontSize: 9,
-      color: C.textDim
+      display: "inline-block",
+      width: 7,
+      height: 7,
+      borderRadius: "50%",
+      background: syncing ? C.yellow : pendingSync ? C.yellow : syncError ? C.red : C.green,
+      flexShrink: 0
     }
-  }, "\u27F3"), syncError && /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 9,
-      color: C.red,
-      padding: "2px 7px",
-      border: "1px solid ".concat(C.red),
-      borderRadius: 4
-    }
-  }, "\u26A0 offline"), /*#__PURE__*/React.createElement("button", {
+  }), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: function onClick() {
       return setIsDark(function (d) {
@@ -9897,7 +9944,7 @@ function NVJournal() {
       fontFamily: "'JetBrains Mono',monospace",
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v53")), /*#__PURE__*/React.createElement("span", {
+  }, "NV JOURNAL - v55")), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
       color: C.textDim,
