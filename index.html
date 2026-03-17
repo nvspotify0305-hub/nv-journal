@@ -4306,11 +4306,9 @@ function NVJournal() {
   // ── Macro fetch ──
   // ── Cloudflare Worker URL — single source of truth ──
   var WORKER_URL = "https://nv-macro.nv-trading23.workers.dev";
+  var AV_KEY = "8QJUDGKY58GBEIEZ";
 
-  function processWorkerData(raw) {
-    var fx = raw.fx || {};
-    var gold = raw.gold || null;
-    var news = raw.news || [];
+  function processRawData(fx, gold, news) {
     var curs = ["USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD"];
     var strength = {}; curs.forEach(function(c){ strength[c]=0; });
     var pairMap = [
@@ -4335,30 +4333,109 @@ function NVJournal() {
   }
 
   function fetchMacroData() {
-    // Check localStorage cache (4hr TTL)
+    var FOUR_HOURS = 4*60*60*1000;
+
+    // 1. Check localStorage first
     try {
-      var cached = localStorage.getItem("nv_macro_cache");
-      if (cached) {
-        var parsed = JSON.parse(cached);
-        if (parsed && parsed.ts && (Date.now() - parsed.ts) < 4*60*60*1000) {
-          setMacroData(parsed.data);
-          setMacroTs(new Date(parsed.ts).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})+" (cached)");
+      var lsc = localStorage.getItem("nv_macro_cache");
+      if (lsc) {
+        var lsp = JSON.parse(lsc);
+        if (lsp && lsp.ts && (Date.now()-lsp.ts) < FOUR_HOURS) {
+          setMacroData(lsp.data);
+          setMacroTs(new Date(lsp.ts).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})+" (cached)");
           return;
         }
       }
     } catch(e) {}
+
     setMacroLoading(true); setMacroError("");
+
     (async function() {
       try {
-        var r = await fetch(WORKER_URL);
-        if (!r.ok) throw new Error("Worker returned " + r.status);
-        var raw = await r.json();
-        if (raw.error) throw new Error(raw.error);
-        var result = processWorkerData(raw);
-        setMacroData(result);
+        // 2. Check Worker cache
+        try {
+          var wr = await fetch(WORKER_URL);
+          var wj = await wr.json();
+          if (wj && wj.ts && !wj.stale && (Date.now()-wj.ts) < FOUR_HOURS) {
+            var result = processRawData(wj.fx||{}, wj.gold||null, wj.news||[]);
+            setMacroData(result);
+            var wts = new Date(wj.ts).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+            setMacroTs(wts+" (cached)");
+            try { localStorage.setItem("nv_macro_cache", JSON.stringify({ts:wj.ts, data:result})); } catch(e) {}
+            setMacroLoading(false);
+            return;
+          }
+        } catch(e) {}
+
+        // 3. Fetch fresh from AV in browser — staggered 300ms apart
+        var AV = "https://www.alphavantage.co/query";
+        var sleep = function(ms){ return new Promise(function(r){setTimeout(r,ms);}); };
+        var fetchPair = async function(from, to, delayMs) {
+          await sleep(delayMs);
+          try {
+            var r = await fetch(AV+"?function=CURRENCY_EXCHANGE_RATE&from_currency="+from+"&to_currency="+to+"&apikey="+AV_KEY);
+            var d = await r.json();
+            var info = d["Realtime Currency Exchange Rate"];
+            if (info) return { sym:from+to, rate:parseFloat(info["5. Exchange Rate"]), time:info["6. Last Refreshed"] };
+          } catch(e) {}
+          return null;
+        };
+
+        var results = await Promise.all([
+          fetchPair("EUR","USD",0),
+          fetchPair("GBP","USD",700),
+          fetchPair("USD","JPY",1400),
+          fetchPair("USD","CHF",2100),
+          fetchPair("AUD","USD",2800),
+          fetchPair("USD","CAD",3500),
+          fetchPair("XAU","USD",4200),
+        ]);
+
+        var fx = {};
+        var gold = null;
+        results.forEach(function(r){
+          if(!r) return;
+          if(r.sym==="XAUUSD") gold={rate:r.rate};
+          else fx[r.sym]={rate:r.rate, time:r.time};
+        });
+
+        // Crosses
+        if(fx.EURUSD&&fx.GBPUSD) fx.EURGBP={rate:+(fx.EURUSD.rate/fx.GBPUSD.rate).toFixed(5),derived:true};
+        if(fx.GBPUSD&&fx.USDJPY) fx.GBPJPY={rate:+(fx.GBPUSD.rate*fx.USDJPY.rate).toFixed(3),derived:true};
+        if(fx.EURUSD&&fx.USDJPY) fx.EURJPY={rate:+(fx.EURUSD.rate*fx.USDJPY.rate).toFixed(3),derived:true};
+        if(fx.USDCAD&&fx.USDJPY) fx.CADJPY={rate:+(fx.USDJPY.rate/fx.USDCAD.rate).toFixed(3),derived:true};
+        if(fx.EURUSD&&fx.USDCAD) fx.EURCAD={rate:+(fx.EURUSD.rate*fx.USDCAD.rate).toFixed(5),derived:true};
+        if(fx.GBPUSD&&fx.USDCHF) fx.GBPCHF={rate:+(fx.GBPUSD.rate*fx.USDCHF.rate).toFixed(5),derived:true};
+        if(fx.AUDUSD) fx.NZDUSD={rate:+(fx.AUDUSD.rate*0.922).toFixed(5),derived:true};
+
+        // News — after pairs
+        var news = [];
+        try {
+          await sleep(5000);
+          var nr = await fetch(AV+"?function=NEWS_SENTIMENT&tickers=FOREX:USD,FOREX:EUR,FOREX:GBP&limit=10&apikey="+AV_KEY);
+          var nd = await nr.json();
+          if(nd.feed) news=nd.feed.slice(0,8).map(function(n){
+            var score=parseFloat(n.overall_sentiment_score||0);
+            var label=score>0.15?"Bullish":score<-0.15?"Bearish":"Neutral";
+            var tickers=(n.ticker_sentiment||[]).map(function(t){return t.ticker;}).join(" ");
+            var cur=tickers.includes("FOREX:GBP")?"GBP":tickers.includes("FOREX:EUR")?"EUR":"USD";
+            return {title:n.title,source:n.source,score:score,label:label,cur:cur};
+          });
+        } catch(e) {}
+
         var now = Date.now();
+        var rawData = { fx:fx, gold:gold, news:news, ts:now };
+        var processed = processRawData(fx, gold, news);
+
+        setMacroData(processed);
         setMacroTs(new Date(now).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})+" Dublin");
-        try { localStorage.setItem("nv_macro_cache", JSON.stringify({ts:now, data:result})); } catch(e) {}
+
+        // Save to localStorage
+        try { localStorage.setItem("nv_macro_cache", JSON.stringify({ts:now, data:processed})); } catch(e) {}
+
+        // Save to Worker cache (fire and forget)
+        try { fetch(WORKER_URL, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(rawData)}); } catch(e) {}
+
       } catch(e) { setMacroError("Could not load macro data: "+e.message); }
       setMacroLoading(false);
     })();
