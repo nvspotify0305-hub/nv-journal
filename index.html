@@ -374,7 +374,7 @@ function calcGrade(s) {
       grade: "B",
       pts: 0,
       score: 0,
-      maxPts: 24,
+      maxPts: 33,
       tradeable: false,
       blocked: "C5+ on entry timeframe — not tradeable",
       modelType: "",
@@ -392,7 +392,7 @@ function calcGrade(s) {
       grade: "B",
       pts: 0,
       score: 0,
-      maxPts: 24,
+      maxPts: 33,
       tradeable: false,
       blocked: "H1 bias conflicts with direction",
       modelType: "",
@@ -419,7 +419,7 @@ function calcGrade(s) {
       grade: "B",
       pts: 0,
       score: 0,
-      maxPts: 24,
+      maxPts: 33,
       tradeable: false,
       blocked: "Fewer than 2 HTFs aligned — H4+H1 or Daily+H1 minimum required",
       modelType: "",
@@ -442,7 +442,7 @@ function calcGrade(s) {
       grade: "B",
       pts: 0,
       score: 0,
-      maxPts: 24,
+      maxPts: 33,
       tradeable: false,
       blocked: "No sweep and no SMT — at least one required",
       modelType: "",
@@ -472,11 +472,14 @@ function calcGrade(s) {
   score += hasDiscPrem ? 2 : 0;
   var hasPSP = !!s.psp;
   score += hasPSP ? 1 : 0;
+  score += dailyOk ? 2 : 0;
+  score += h4Ok ? 2 : 0;
+  score += 1; // H1 always aligned (hard block above guarantees this)
   var hasKeyZone = !!(s.key_zone && s.key_zone !== "None");
   var phase = s.h1_phase || "";
   var phaseBonus = phase === "Expansion" ? 2 : phase === "Continuation" ? 1 : 0;
   score += phaseBonus;
-  score = Math.min(score, 24);
+  score = Math.min(score, 33);
 
   // ── Sweep combo — valid pairs for A+: H4+H1, H4sw+H1smt, H1sw+H4smt, H4smt+H1smt ──
   var comboSweep = hasSweepH4 && hasSweepH1 || hasSweepH4 && hasSMTH1 || hasSweepH1 && hasSMTH4 || hasSMTH4 && hasSMTH1;
@@ -515,7 +518,8 @@ function calcGrade(s) {
   };
   var alLabel = fullAlign ? "Daily+H4+H1" : h4h1Align ? "H4+H1" : "Daily+H1";
   var alCap = fullAlign ? "A+ eligible" : "Max grade: A";
-  addR("HTF Alignment", true, "".concat(alLabel, " \xB7 ").concat(alCap));
+  var htfPts = (dailyOk ? 2 : 0) + (h4Ok ? 2 : 0) + 1;
+  addR("HTF Alignment", true, "".concat(alLabel, " \xB7 ").concat(alCap), htfPts);
   addR("Key Zone", hasKeyZone, hasKeyZone ? s.key_zone : "MISSING");
   addR("CISD H1", cisdH1, cisdH1 ? "✓" : "MISSING", cisdH1 ? 3 : 0);
   addR("5M CISD", cisd5M, cisd5M ? "✓" : fullAlign ? "needed for A+" : "", cisd5M ? 2 : 0);
@@ -539,7 +543,7 @@ function calcGrade(s) {
     grade: grade,
     pts: score,
     score: score,
-    maxPts: 24,
+    maxPts: 33,
     tradeable: true,
     blocked: null,
     modelType: modelType,
@@ -8938,7 +8942,7 @@ function NVJournal() {
       fontFamily: "'JetBrains Mono',monospace",
       color: C.textDim
     }
-  }, gradeDisplay.score, "/", gradeDisplay.maxPts || 24, "pts"))), /*#__PURE__*/React.createElement("div", {
+  }, gradeDisplay.score, "/", gradeDisplay.maxPts || 33, "pts"))), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 9,
       letterSpacing: ".12em",
