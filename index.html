@@ -371,7 +371,7 @@ var CONF_ALL = [{
 // Legacy alias
 var ALL_CONFS = CONF_ALL;
 
-// ─── GRADE ENGINE v4 ─────────────────────────────────────────────────────────
+// ─── GRADE ENGINE v1 ─────────────────────────────────────────────────────────
 // HTF alignment gates grade ceiling — derived from bias dropdowns.
 // A+ = full Daily+H4+H1 align + CISD H1 + 5M CISD + sweep combo + Key Zone.
 // A  = any 2 HTFs aligned + CISD H1 + Key Zone + 1 major signal.
@@ -393,7 +393,7 @@ function calcGrade(s) {
       grade: "B",
       pts: 0,
       score: 0,
-      maxPts: 33,
+      maxPts: 35,
       tradeable: false,
       blocked: "C5+ on entry timeframe — not tradeable",
       modelType: "",
@@ -411,7 +411,7 @@ function calcGrade(s) {
       grade: "B",
       pts: 0,
       score: 0,
-      maxPts: 33,
+      maxPts: 35,
       tradeable: false,
       blocked: "H1 bias conflicts with direction",
       modelType: "",
@@ -438,7 +438,7 @@ function calcGrade(s) {
       grade: "B",
       pts: 0,
       score: 0,
-      maxPts: 33,
+      maxPts: 35,
       tradeable: false,
       blocked: "Fewer than 2 HTFs aligned — H4+H1 or Daily+H1 minimum required",
       modelType: "",
@@ -461,7 +461,7 @@ function calcGrade(s) {
       grade: "B",
       pts: 0,
       score: 0,
-      maxPts: 33,
+      maxPts: 35,
       tradeable: false,
       blocked: "No sweep and no SMT — at least one required",
       modelType: "",
@@ -495,10 +495,11 @@ function calcGrade(s) {
   score += h4Ok ? 2 : 0;
   score += 1; // H1 always aligned (hard block above guarantees this)
   var hasKeyZone = !!(s.key_zone && s.key_zone !== "None");
+  score += hasKeyZone ? 2 : 0;
   var phase = s.h1_phase || "";
   var phaseBonus = phase === "Expansion" ? 2 : phase === "Continuation" ? 1 : 0;
   score += phaseBonus;
-  score = Math.min(score, 33);
+  score = Math.min(score, 35);
 
   // ── Sweep combo — valid pairs for A+: H4+H1, H4sw+H1smt, H1sw+H4smt, H4smt+H1smt ──
   var comboSweep = hasSweepH4 && hasSweepH1 || hasSweepH4 && hasSMTH1 || hasSweepH1 && hasSMTH4 || hasSMTH4 && hasSMTH1;
@@ -539,7 +540,7 @@ function calcGrade(s) {
   var alCap = fullAlign ? "A+ eligible" : "Max grade: A";
   var htfPts = (dailyOk ? 2 : 0) + (h4Ok ? 2 : 0) + 1;
   addR("HTF Alignment", true, "".concat(alLabel, " \xB7 ").concat(alCap), htfPts);
-  addR("Key Zone", hasKeyZone, hasKeyZone ? s.key_zone : "MISSING");
+  addR("Key Zone", hasKeyZone, hasKeyZone ? s.key_zone : "MISSING", hasKeyZone ? 2 : 0);
   addR("CISD H1", cisdH1, cisdH1 ? "✓" : "MISSING", cisdH1 ? 3 : 0);
   addR("5M CISD", cisd5M, cisd5M ? "✓" : fullAlign ? "needed for A+" : "", cisd5M ? 2 : 0);
   addR("Sweep Combo", comboSweep, comboSweep ? "✓" : fullAlign ? "needed for A+" : "");
@@ -562,7 +563,7 @@ function calcGrade(s) {
     grade: grade,
     pts: score,
     score: score,
-    maxPts: 33,
+    maxPts: 35,
     tradeable: true,
     blocked: null,
     modelType: modelType,
@@ -978,7 +979,7 @@ function GradeMeter(_ref2) {
       color: C.textMid,
       fontFamily: "'JetBrains Mono',monospace"
     }
-  }, score, "/", maxPts || 20, " pts"), /*#__PURE__*/React.createElement("div", {
+  }, score, "/", maxPts || 35, " pts"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: statusColor,
@@ -1000,7 +1001,7 @@ function GradeMeter(_ref2) {
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       height: "100%",
-      width: "".concat(score / (maxPts || 20) * 100, "%"),
+      width: "".concat(score / (maxPts || 35) * 100, "%"),
       background: gc,
       borderRadius: 3,
       transition: "width .4s"
@@ -3399,6 +3400,23 @@ function CardElevated(_ref21) {
     }, style)
   }, children);
 }
+// ─── TOAST NOTIFICATION ──────────────────────────────────────────────────────
+function ToastBar(_ref22t) {
+  var toast = _ref22t.toast;
+  var _useThemeT = useTheme(), C = _useThemeT.C;
+  if (!toast) return null;
+  var bg = toast.type === "error" ? C.red : toast.type === "warn" ? C.yellow : C.green;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+      background: bg, color: "#fff", borderRadius: 8,
+      padding: "10px 20px", fontSize: 12, fontFamily: "'JetBrains Mono',monospace",
+      fontWeight: 500, zIndex: 9999, pointerEvents: "none",
+      boxShadow: "0 4px 16px rgba(0,0,0,0.25)", whiteSpace: "nowrap",
+      animation: "fadeUp .18s ease forwards"
+    }
+  }, toast.msg);
+}
 function GradeBadge(_ref22) {
   var grade = _ref22.grade,
     _ref22$size = _ref22.size,
@@ -4048,6 +4066,16 @@ function NVJournal() {
     _useState32 = _slicedToArray(_useState31, 2),
     now = _useState32[0],
     setNow = _useState32[1];
+  var _useStateToast = useState(null),
+    _useStateToast2 = _slicedToArray(_useStateToast, 2),
+    toast = _useStateToast2[0],
+    setToast = _useStateToast2[1];
+  var showToast = function showToast(msg) {
+    var type = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : "success";
+    var dur = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 2800;
+    setToast({ msg: msg, type: type });
+    setTimeout(function () { setToast(null); }, dur);
+  };
   useEffect(function () {
     var t = setInterval(function () {
       return setNow(new Date());
@@ -4686,7 +4714,7 @@ function NVJournal() {
     reader.onload = function (e) {
       var lines = e.target.result.split("\n").filter(Boolean);
       if (lines.length < 2) {
-        alert("Empty CSV");
+        showToast("Empty CSV — no trades found", "error");
         return;
       }
       var headers = lines[0].split(",").map(function (h) {
@@ -4737,7 +4765,7 @@ function NVJournal() {
         deduped.forEach(function (r) {
           return sbSave("trades", r);
         });
-        alert("Imported ".concat(deduped.length, " trades successfully!").concat(skipped > 0 ? " ".concat(skipped, " duplicate(s) skipped.") : ""));
+        showToast("Imported " + deduped.length + " trade" + (deduped.length !== 1 ? "s" : "") + (skipped > 0 ? " · " + skipped + " duplicate" + (skipped !== 1 ? "s" : "") + " skipped" : ""));
       }
     };
     reader.readAsText(file);
@@ -4748,14 +4776,14 @@ function NVJournal() {
     });
     var effectiveTaken = hasC5 ? false : tf.trade_taken;
     if (effectiveTaken && tf.r_result === "") {
-      alert("Enter R Result");
+      showToast("Enter R Result before saving", "error");
       return;
     }
     var gr = calcGrade(_objectSpread(_objectSpread({}, tf), {}, {
       trade_taken: effectiveTaken
     }));
     if (effectiveTaken && gr.blocked) {
-      alert("Cannot save: " + gr.blocked);
+      showToast("Cannot save: " + gr.blocked, "error");
       return;
     }
     var autoReason = !effectiveTaken && hasC5 && !tf.no_trade_reason ? "Non-Executable C5+" : tf.no_trade_reason;
@@ -5679,6 +5707,51 @@ function NVJournal() {
       })));
     })));
   };
+  var SessionStatsPanel = function SessionStatsPanel(_ref43b) {
+    var data = _ref43b.data,
+      _ref43b$isLive = _ref43b.isLive,
+      isLive = _ref43b$isLive === void 0 ? true : _ref43b$isLive;
+    var ex = isLive ? data.filter(function (t) { return t.trade_taken; }) : data;
+    var cols = SESSIONS.map(function (s) {
+      var m = calcMetrics(ex.filter(function (t) { return t.session === s; }), isLive);
+      return { s: s, m: m };
+    });
+    return /*#__PURE__*/React.createElement(Card, null,
+      /*#__PURE__*/React.createElement("span", { className: "lbl" }, "Session Breakdown"),
+      /*#__PURE__*/React.createElement("div", {
+        style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginTop: 10 }
+      }, cols.map(function (_ref43c) {
+        var s = _ref43c.s, m = _ref43c.m;
+        var rCol = m.totalR > 0 ? C.green : m.totalR < 0 ? C.red : C.textDim;
+        return /*#__PURE__*/React.createElement("div", {
+          key: s,
+          style: {
+            background: isDark ? "#000" : C.surfaceHigh,
+            borderRadius: 8, padding: "10px 12px",
+            border: "1px solid ".concat(C.border)
+          }
+        },
+          /*#__PURE__*/React.createElement("div", {
+            style: { fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, color: C.textMid, letterSpacing: ".1em", marginBottom: 8 }
+          }, SL(s)),
+          [
+            ["Trades", m.total, C.accent],
+            ["Win %", m.total ? m.winRate + "%" : "—", m.winRate >= 50 ? C.green : m.total ? C.red : C.textDim],
+            ["Total R", m.total ? (m.totalR > 0 ? "+" : "") + m.totalR + "R" : "—", rCol],
+            ["Exp", m.total ? m.expectancy + "R" : "—", m.expectancy > 0 ? C.green : m.expectancy < 0 ? C.red : C.textDim]
+          ].map(function (row) {
+            return /*#__PURE__*/React.createElement("div", {
+              key: row[0],
+              style: { display: "flex", justifyContent: "space-between", marginBottom: 3 }
+            },
+              /*#__PURE__*/React.createElement("span", { style: { fontSize: 9, color: C.textDim } }, row[0]),
+              /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: row[2] } }, row[1])
+            );
+          })
+        );
+      }))
+    );
+  };
   var PairSessionMatrix = function PairSessionMatrix(_ref45) {
     var data = _ref45.data,
       _ref45$isLive = _ref45.isLive,
@@ -5792,7 +5865,7 @@ function NVJournal() {
           color: gc,
           marginBottom: 4
         }
-      }, g), [["T", m.total, null], ["R", "".concat(m.totalR > 0 ? "+" : "").concat(m.totalR), m.totalR >= 0 ? C.green : C.red], ["W%", "".concat(m.winRate, "%"), C.accent], ["Exp", "".concat(m.expectancy, "R"), null]].map(function (_ref47) {
+      }, g), [["T", m.total, null], ["R", "".concat(m.totalR > 0 ? "+" : "").concat(m.totalR), m.totalR >= 0 ? C.green : C.red], ["Avg R", m.total ? (m.avgWin && m.wins ? "+" + (m.totalR / m.total).toFixed(2) : (m.totalR / m.total).toFixed(2)) + "R" : "—", m.total && m.totalR / m.total > 0 ? C.green : m.total && m.totalR / m.total < 0 ? C.red : C.textDim], ["W%", "".concat(m.winRate, "%"), C.accent], ["Exp", "".concat(m.expectancy, "R"), null]].map(function (_ref47) {
         var _ref48 = _slicedToArray(_ref47, 3),
           l = _ref48[0],
           v = _ref48[1],
@@ -7525,7 +7598,7 @@ function NVJournal() {
       C: C,
       isDark: isDark
     }
-  }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("style", null, CSS), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("style", null, CSS), /*#__PURE__*/React.createElement(ToastBar, { toast: toast }), /*#__PURE__*/React.createElement("div", {
     style: {
       minHeight: "100vh",
       background: C.bg
@@ -7901,6 +7974,9 @@ function NVJournal() {
     size: "md"
   })), /*#__PURE__*/React.createElement(EquityCurve, {
     data: executedFiltered
+  }), /*#__PURE__*/React.createElement(SessionStatsPanel, {
+    data: dashFiltered,
+    isLive: dashView === "Live"
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
@@ -8989,7 +9065,7 @@ function NVJournal() {
       fontFamily: "'JetBrains Mono',monospace",
       color: C.textDim
     }
-  }, gradeDisplay.score, "/", gradeDisplay.maxPts || 33, "pts"))), /*#__PURE__*/React.createElement("div", {
+  }, gradeDisplay.score, "/", gradeDisplay.maxPts || 35, "pts"))), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 9,
       letterSpacing: ".12em",
@@ -9731,7 +9807,15 @@ function NVJournal() {
     /*#__PURE__*/React.createElement("div", { style:{display:"flex",alignItems:"center",justifyContent:"space-between"} },
       /*#__PURE__*/React.createElement("span", { style:{fontSize:15,fontWeight:600,color:C.text} }, "Macro Dashboard"),
       /*#__PURE__*/React.createElement("div", { style:{display:"flex",alignItems:"center",gap:8} },
-        macroTs && /*#__PURE__*/React.createElement("span", { style:{fontSize:10,color:C.textDim} }, "Updated "+macroTs),
+        macroTs && /*#__PURE__*/React.createElement("span", {
+          style: {
+            fontSize: 10, fontFamily: "'JetBrains Mono',monospace",
+            padding: "3px 9px", borderRadius: 20,
+            background: macroError ? C.red + "22" : macroTs.includes("cached") ? C.yellow + "22" : C.green + "22",
+            color: macroError ? C.red : macroTs.includes("cached") ? C.yellow : C.green,
+            border: "1px solid " + (macroError ? C.red : macroTs.includes("cached") ? C.yellow : C.green)
+          }
+        }, macroError ? "Worker down" : macroTs.includes("cached") ? "\u29d7 Cached \xB7 " + macroTs.replace(" (cached)", "") : "\u25CF Live \xB7 " + macroTs),
         /*#__PURE__*/React.createElement("button", {
           type:"button", onClick:fetchMacroData, disabled:macroLoading,
           style:{padding:"5px 14px",background:C.accentGlow,border:"1px solid ".concat(C.border),borderRadius:6,color:C.accent,fontSize:11,cursor:macroLoading?"default":"pointer"}
@@ -9944,7 +10028,7 @@ function NVJournal() {
       fontFamily: "'JetBrains Mono',monospace",
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v55")), /*#__PURE__*/React.createElement("span", {
+  }, "NV JOURNAL - v56")), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
       color: C.textDim,
