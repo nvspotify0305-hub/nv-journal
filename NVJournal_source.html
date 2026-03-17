@@ -335,15 +335,15 @@ var CONF_ALL = [{
 }, {
   key: "cisd_h4",
   label: "CISD H4",
-  pts: 2
+  pts: 1
 }, {
   key: "displacement",
   label: "Displacement",
-  pts: 2
+  pts: 1
 }, {
   key: "discount_prem",
   label: "Premium/Discount",
-  pts: 1
+  pts: 2
 }, {
   key: "psp",
   label: "PSP",
@@ -465,11 +465,11 @@ function calcGrade(s) {
   var cisd5M = !!s.ltf_5m_cisd;
   score += cisd5M ? 2 : 0;
   var cisdH4 = !!s.cisd_h4;
-  score += cisdH4 ? 2 : 0;
+  score += cisdH4 ? 1 : 0;
   var hasDisp = !!s.displacement;
-  score += hasDisp ? 2 : 0;
+  score += hasDisp ? 1 : 0;
   var hasDiscPrem = !!s.discount_prem;
-  score += hasDiscPrem ? 1 : 0;
+  score += hasDiscPrem ? 2 : 0;
   var hasPSP = !!s.psp;
   score += hasPSP ? 1 : 0;
   var hasKeyZone = !!(s.key_zone && s.key_zone !== "None");
@@ -530,9 +530,9 @@ function calcGrade(s) {
     var _pa = s.smt_h1_pair ? " vs ".concat(s.smt_h1_pair) : "";
     addR("SMT H1".concat(_pa), true, "+4pts", 4);
   }
-  if (cisdH4) addR("CISD H4", true, "+2pts", 2);
-  if (hasDisp) addR("Displacement", true, "+2pts", 2);
-  if (hasDiscPrem) addR("Premium/Discount", true, "+1pt", 1);
+  if (cisdH4) addR("CISD H4", true, "+1pt", 1);
+  if (hasDisp) addR("Displacement", true, "+1pt", 1);
+  if (hasDiscPrem) addR("Premium/Discount", true, "+2pts", 2);
   if (hasPSP) addR("PSP", true, "+1pt", 1);
   if (phaseBonus > 0) addR("H1 Phase: ".concat(phase), true, "+".concat(phaseBonus, "pts"), phaseBonus);else if (phase) addR("H1 Phase: ".concat(phase), false, "0pts");
   return {
@@ -9893,7 +9893,7 @@ function NVJournal() {
       fontFamily: "'JetBrains Mono',monospace",
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL")), /*#__PURE__*/React.createElement("span", {
+  }, "NV JOURNAL · v53")), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
       color: C.textDim,
