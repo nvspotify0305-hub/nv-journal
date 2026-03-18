@@ -2662,7 +2662,7 @@ function CryptoTracker(_ref13) {
         color: C.textDim,
         fontWeight: 600,
         display: "block",
-        marginBottom: 4
+        marginBottom: 6
       }
     }, l), /*#__PURE__*/React.createElement("div", {
       style: statStyle(col)
@@ -3570,18 +3570,25 @@ function Stat(_ref27) {
     color = _ref27.color,
     sub = _ref27.sub,
     _ref27$size = _ref27.size,
-    size = _ref27$size === void 0 ? "md" : _ref27$size;
+    size = _ref27$size === void 0 ? "md" : _ref27$size,
+    hero = _ref27.hero,
+    heroColor = _ref27.heroColor;
   var _useTheme7 = useTheme(),
-    C = _useTheme7.C;
-  var fs = size === "xl" ? 42 : size === "lg" ? 26 : size === "sm" ? 13 : 18;
-  return /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("span", {
+    C = _useTheme7.C,
+    isDark = _useTheme7.isDark;
+  var fs = size === "xl" ? 48 : size === "lg" ? 26 : size === "sm" ? 13 : 18;
+  var heroStyle = hero ? {
+    borderLeft: "3px solid ".concat(heroColor || C.border),
+    background: (color && color !== C.text && color !== C.border) ? color.replace(/^(#[0-9a-fA-F]{3,6})$/, function(h){ return h; }) + (isDark ? "12" : "10") : "transparent"
+  } : {};
+  return /*#__PURE__*/React.createElement(Card, { style: heroStyle }, /*#__PURE__*/React.createElement("span", {
     className: "lbl"
   }, label), /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: "'Bebas Neue',sans-serif",
       fontSize: fs,
       color: color || C.text,
-      lineHeight: 1.05,
+      lineHeight: 1,
       marginTop: 2
     }
   }, value), sub && /*#__PURE__*/React.createElement("div", {
@@ -4388,7 +4395,12 @@ function NVJournal() {
   // ── Macro fetch ──
   // ── Cloudflare Worker URL — single source of truth ──
   var WORKER_URL = "https://nv-macro.nv-trading23.workers.dev";
-  var AV_KEY = "8QJUDGKY58GBEIEZ";
+  var AV_KEY = avKey || "9AN0QKJUV5YE8LFP";
+
+  // Auto-trigger macro fetch when Macro tab opens (respects 4hr localStorage cache)
+  useEffect(function() {
+    if (tab === "Macro") fetchMacroData();
+  }, [tab]);
 
   function processRawData(fx, gold, news) {
     var curs = ["USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD"];
@@ -4869,7 +4881,7 @@ function NVJournal() {
     });
   }
   var CSS = React.useMemo(function () {
-    return "\n    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}\n    body{background:".concat(C.bg, ";color:").concat(C.text, ";font-family:'Inter',sans-serif;min-height:100vh;overflow-anchor:none;}\n    ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:").concat(C.bg, ";}::-webkit-scrollbar-thumb{background:").concat(C.border, ";border-radius:2px;}\n    input,select,textarea{background:").concat(isDark ? "#0d0d0d" : "#fff", ";color:").concat(C.text, ";border:1px solid ").concat(isDark ? "#333" : C.border, ";border-radius:5px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;width:100%;outline:none;transition:border-color .15s;}\n    input:focus,select:focus,textarea:focus{border-color:").concat(C.accentDim, ";box-shadow:0 0 0 2px ").concat(C.accentGlow, ";}\n    select option{background:").concat(isDark ? "#111" : "#fff", ";}\n    textarea{resize:vertical;}button{cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}\n    input[type=checkbox]{width:14px;height:14px;accent-color:").concat(C.accent, ";cursor:pointer;}\n    .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:").concat(C.textDim, ";font-weight:600;display:block;margin-bottom:4px;}\n    @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}\n    .fade{animation:fadeUp .18s ease forwards;}\n  ");
+    return "\n    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}\n    body{background:".concat(C.bg, ";color:").concat(C.text, ";font-family:'Inter',sans-serif;min-height:100vh;overflow-anchor:none;}\n    ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:").concat(C.bg, ";}::-webkit-scrollbar-thumb{background:").concat(C.border, ";border-radius:2px;}\n    input,select,textarea{background:").concat(isDark ? "#0d0d0d" : "#fff", ";color:").concat(C.text, ";border:1px solid ").concat(isDark ? "#333" : C.border, ";border-radius:5px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;width:100%;outline:none;transition:border-color .15s;}\n    input:focus,select:focus,textarea:focus{border-color:").concat(C.accentDim, ";box-shadow:0 0 0 2px ").concat(C.accentGlow, ";}\n    select option{background:").concat(isDark ? "#111" : "#fff", ";}\n    textarea{resize:vertical;}button{cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}\n    input[type=checkbox]{width:14px;height:14px;accent-color:").concat(C.accent, ";cursor:pointer;}\n    .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:").concat(C.textDim, ";font-weight:600;display:block;margin-bottom:6px;}\n    .card-hover{transition:box-shadow .15s,border-color .15s;}.card-hover:hover{box-shadow:0 0 0 1px ").concat(C.accentDim, " !important;border-color:").concat(C.accentDim, " !important;}\n    @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}\n    @keyframes tabIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}\n    .fade{animation:fadeUp .18s ease forwards;}\n    .tab-panel{animation:tabIn .18s ease forwards;}\n  ");
   }, [isDark]);
 
   // ── Shared UI (stable primitives now via ThemeCtx, defined outside) ──
@@ -5325,20 +5337,21 @@ function NVJournal() {
         alignItems: "center",
         justifyContent: "center"
       }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.textDim,
-        fontSize: 12
-      }
-    }, "No executed trades yet"));
+    }, /*#__PURE__*/React.createElement("div", {
+      style: { textAlign: "center" }
+    }, /*#__PURE__*/React.createElement("svg", { width: 36, height: 36, viewBox: "0 0 24 24", fill: "none", style: { margin: "0 auto 8px", display: "block", opacity: 0.25 } },
+      /*#__PURE__*/React.createElement("polyline", { points: "3,17 8,12 13,15 21,7", stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round" }),
+      /*#__PURE__*/React.createElement("line", { x1: 3, y1: 20, x2: 21, y2: 20, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" })
+    ), /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: C.textDim, fontWeight: 600 } }, "No executed trades yet"),
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: C.textDim, marginTop: 3, opacity: 0.7 } }, "Log your first trade to see the equity curve")));
     var cum = 0;
     var pts = sorted.map(function (t) {
       cum += parseFloat(t.r_result || 0);
       return +cum.toFixed(2);
     });
     var W = 600,
-      H = 90,
-      p = 8;
+      H = 160,
+      p = 10;
     var mn = Math.min.apply(Math, [0].concat(_toConsumableArray(pts))),
       mx = Math.max.apply(Math, [0].concat(_toConsumableArray(pts))),
       rng = mx - mn || 1;
@@ -5381,7 +5394,7 @@ function NVJournal() {
       viewBox: "0 0 ".concat(W, " ").concat(H),
       style: {
         width: "100%",
-        height: 90,
+        height: 160,
         marginTop: 4
       }
     }, /*#__PURE__*/React.createElement("line", {
@@ -5392,7 +5405,13 @@ function NVJournal() {
       stroke: C.border,
       strokeWidth: 1,
       strokeDasharray: "4 3"
-    }), /*#__PURE__*/React.createElement("path", {
+    }), /*#__PURE__*/React.createElement("text", {
+      x: p + 2, y: p + 8, fontSize: "8", fill: C.textDim, fontFamily: "JetBrains Mono,monospace", opacity: 0.7
+    }, mx > 0 ? "+".concat(mx.toFixed(1)) : mx.toFixed(1), "R"),
+    mn < 0 && /*#__PURE__*/React.createElement("text", {
+      x: p + 2, y: H - p - 2, fontSize: "8", fill: C.textDim, fontFamily: "JetBrains Mono,monospace", opacity: 0.7
+    }, mn.toFixed(1), "R"),
+    /*#__PURE__*/React.createElement("path", {
       d: fill,
       fill: last >= 0 ? "rgba(61,214,140,0.06)" : "rgba(240,100,100,0.06)"
     }), /*#__PURE__*/React.createElement("path", {
@@ -7656,14 +7675,14 @@ function NVJournal() {
       },
       style: {
         padding: "5px 14px",
-        border: "none",
-        borderRadius: 5,
+        border: tab === t ? "1px solid ".concat(C.border) : "1px solid transparent",
+        borderRadius: 6,
         fontSize: 11,
         letterSpacing: ".06em",
-        fontWeight: 500,
-        background: tab === t ? C.accentGlow : "transparent",
+        fontWeight: tab === t ? 600 : 500,
+        background: tab === t ? C.surfaceHigh : "transparent",
         color: tab === t ? C.accent : C.textMid,
-        borderBottom: tab === t ? "1.5px solid ".concat(C.accent) : "1.5px solid transparent"
+        boxShadow: tab === t ? (isDark ? "0 1px 3px rgba(0,0,0,0.4)" : "0 1px 3px rgba(0,0,0,0.1)") : "none"
       }
     }, t);
   })), /*#__PURE__*/React.createElement("div", {
@@ -7859,7 +7878,76 @@ function NVJournal() {
       color: C.red,
       fontSize: 11
     }
-  }, "\uD83D\uDDD1 Clear All Data"))), (tab === "Dashboard" || tab === "Trades") && /*#__PURE__*/React.createElement("div", {
+  }, "\uD83D\uDDD1 Clear All Data"))), /*#__PURE__*/React.createElement(React.Fragment, null,
+    (function() {
+      var tzM = dst && TZ_DST_MAP[tz] || TZ_MAP[tz];
+      var cuts = (tzM && tzM.autoH) || [11, 15, 19];
+      var sessionStarts = ["7AM", "11AM", "3PM"];
+      var nowLocal = new Date(now.toLocaleString("en-US", {timeZone: tzIANA}));
+      var nowH = nowLocal.getHours();
+      var nowMin = nowLocal.getMinutes();
+      var activeIdx = -1;
+      for (var i = 0; i < cuts.length; i++) {
+        if (nowH === cuts[i] && nowMin < 30) { activeIdx = i; break; }
+      }
+      if (activeIdx === -1) return null;
+      var sessLabel = SL(sessionStarts[activeIdx]);
+      var remaining = 29 - nowMin;
+      var todayStr = today();
+      var todayDay = days.find(function(d){ return d.date === todayStr; });
+      var bias = todayDay ? todayDay.bias : null;
+      var biasText = bias && bias !== "Neutral" ? bias : bias === "Neutral" ? "Neutral" : null;
+      var biasColor = !biasText ? (syncError ? C.red : C.yellow) : syncError ? C.red : C.green;
+      var barBg = isDark
+        ? (syncError ? "rgba(30,8,8,0.98)" : !biasText ? "rgba(26,18,0,0.98)" : "rgba(8,20,10,0.98)")
+        : (syncError ? "rgba(255,240,240,0.98)" : !biasText ? "rgba(255,250,235,0.98)" : "rgba(236,248,240,0.98)");
+      var borderCol = isDark
+        ? (syncError ? "#3a1010" : !biasText ? "#3a2800" : "#0e3018")
+        : (syncError ? "#f5c0c0" : !biasText ? "#f0d888" : "#a8ddb8");
+      return /*#__PURE__*/React.createElement("div", {
+        style: {
+          position: "sticky",
+          top: 52,
+          zIndex: 145,
+          background: barBg,
+          borderBottom: "1px solid " + borderCol,
+          padding: "0 22px",
+          height: 30,
+          display: "flex",
+          alignItems: "center",
+          gap: 18
+        }
+      },
+        /*#__PURE__*/React.createElement("div", { style: { display:"flex", alignItems:"center", gap:6 } },
+          /*#__PURE__*/React.createElement("div", { style: { width:6, height:6, borderRadius:"50%", background:biasColor, flexShrink:0 } }),
+          /*#__PURE__*/React.createElement("span", { style: { fontSize:10, fontWeight:700, color:biasColor, letterSpacing:".1em", fontFamily:"'Inter',sans-serif" } },
+            sessLabel.toUpperCase(), " SESSION LIVE"
+          ),
+          /*#__PURE__*/React.createElement("span", { style: { fontSize:10, color:biasColor, opacity:0.6, fontFamily:"'JetBrains Mono',monospace" } },
+            "\xB7 ", remaining, "m remaining"
+          )
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { width:1, height:14, background:borderCol, flexShrink:0 } }),
+        /*#__PURE__*/React.createElement("div", { style: { display:"flex", alignItems:"center", gap:5 } },
+          /*#__PURE__*/React.createElement("span", { style: { fontSize:9, color:biasColor, opacity:0.55, letterSpacing:".12em", textTransform:"uppercase", fontFamily:"'Inter',sans-serif" } }, "BIAS"),
+          biasText
+            ? /*#__PURE__*/React.createElement("span", { style: { fontSize:10, color:biasColor, fontWeight:600, fontFamily:"'Inter',sans-serif" } }, biasText)
+            : /*#__PURE__*/React.createElement("span", {
+                onClick: function(){ switchTab("Days"); },
+                style: { fontSize:10, color:biasColor, opacity:0.7, fontFamily:"'Inter',sans-serif", cursor:"pointer", textDecoration:"underline", textDecorationStyle:"dotted" }
+              }, "Not set \u2014 set now")
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { width:1, height:14, background:borderCol, flexShrink:0 } }),
+        /*#__PURE__*/React.createElement("div", { style: { display:"flex", alignItems:"center", gap:5 } },
+          /*#__PURE__*/React.createElement("span", { style: { fontSize:9, color:biasColor, opacity:0.55, letterSpacing:".12em", textTransform:"uppercase", fontFamily:"'Inter',sans-serif" } }, "SYNC"),
+          /*#__PURE__*/React.createElement("div", { style: {
+            width:5, height:5, borderRadius:"50%", flexShrink:0,
+            background: syncing ? C.yellow : syncError ? C.red : pendingSync ? C.yellow : C.green
+          }})
+        )
+      );
+    })()
+  ), (tab === "Dashboard" || tab === "Trades") && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "sticky",
       top: 52,
@@ -7910,6 +7998,7 @@ function NVJournal() {
       padding: "18px 16px"
     }
   }, tab === "Dashboard" && /*#__PURE__*/React.createElement("div", {
+    className: "tab-panel",
     style: {
       display: "flex",
       flexDirection: "column",
@@ -7928,19 +8017,21 @@ function NVJournal() {
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "repeat(4,1fr)",
+      gridTemplateColumns: "2fr 1fr 1fr 1fr",
       gap: 10
     }
   }, /*#__PURE__*/React.createElement(Stat, {
+    label: "Total R",
+    value: "".concat(metrics.totalR > 0 ? "+" : "").concat(metrics.totalR, "R"),
+    color: metrics.totalR > 0 ? C.green : metrics.totalR < 0 ? C.red : C.text,
+    size: "xl",
+    hero: true,
+    heroColor: metrics.totalR > 0 ? C.green : metrics.totalR < 0 ? C.red : C.border
+  }), /*#__PURE__*/React.createElement(Stat, {
     label: "Total Trades",
     value: metrics.total,
     color: C.accent,
     size: "lg"
-  }), /*#__PURE__*/React.createElement(Stat, {
-    label: "Total R",
-    value: "".concat(metrics.totalR > 0 ? "+" : "").concat(metrics.totalR, "R"),
-    color: metrics.totalR > 0 ? C.green : metrics.totalR < 0 ? C.red : C.text,
-    size: "xl"
   }), /*#__PURE__*/React.createElement(Stat, {
     label: "Win Rate",
     value: "".concat(metrics.winRate, "%"),
@@ -7992,20 +8083,20 @@ function NVJournal() {
   }, /*#__PURE__*/React.createElement(SessionPanel, {
     data: dashFiltered,
     isLive: dashView === "Live"
-  }), /*#__PURE__*/React.createElement(DrawdownPanel, {
-    m: metrics
-  })), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement(GradePanel, {
+    data: dashFiltered,
+    isLive: dashView === "Live"
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "1fr 1fr",
       gap: 10
     }
-  }, /*#__PURE__*/React.createElement(GradePanel, {
-    data: dashFiltered,
-    isLive: dashView === "Live"
-  }), /*#__PURE__*/React.createElement(BestWorstPanel, {
+  }, /*#__PURE__*/React.createElement(BestWorstPanel, {
     m: metrics,
     onClick: setDetailTrade
+  }), /*#__PURE__*/React.createElement(DrawdownPanel, {
+    m: metrics
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
@@ -8150,6 +8241,7 @@ function NVJournal() {
       }
     }, SL(sess)));
   })))), tab === "Trades" && /*#__PURE__*/React.createElement("div", {
+    className: "tab-panel",
     style: {
       display: "flex",
       flexDirection: "column",
@@ -8504,13 +8596,15 @@ function NVJournal() {
       t: t
     });
   }), tradesFiltered.length === 0 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center",
-      padding: 50,
-      color: C.textDim,
-      fontSize: 12
-    }
-  }, "No trades in this period")), tab === "Review" && /*#__PURE__*/React.createElement("div", {
+    style: { textAlign: "center", padding: "48px 20px" }
+  }, /*#__PURE__*/React.createElement("svg", { width: 40, height: 40, viewBox: "0 0 24 24", fill: "none", style: { margin: "0 auto 10px", display: "block", opacity: 0.22 } },
+    /*#__PURE__*/React.createElement("rect", { x: 3, y: 3, width: 18, height: 18, rx: 2, stroke: C.textDim, strokeWidth: 1.5 }),
+    /*#__PURE__*/React.createElement("line", { x1: 8, y1: 9, x2: 16, y2: 9, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
+    /*#__PURE__*/React.createElement("line", { x1: 8, y1: 13, x2: 14, y2: 13, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
+    /*#__PURE__*/React.createElement("line", { x1: 8, y1: 17, x2: 11, y2: 17, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" })
+  ), /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: C.textDim, fontWeight: 600 } }, "No trades in this period"),
+  /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: C.textDim, marginTop: 4, opacity: 0.7 } }, "Adjust the period filter or log a new setup"))), tab === "Review" && /*#__PURE__*/React.createElement("div", {
+    className: "tab-panel",
     style: {
       display: "flex",
       flexDirection: "column",
@@ -8522,7 +8616,15 @@ function NVJournal() {
     }))).sort(function (a, b) {
       return b.localeCompare(a);
     });
-    if (!months.length) return null;
+    if (!months.length) return /*#__PURE__*/React.createElement("div", {
+      style: { textAlign: "center", padding: "48px 20px" }
+    }, /*#__PURE__*/React.createElement("svg", { width: 40, height: 40, viewBox: "0 0 24 24", fill: "none", style: { margin: "0 auto 10px", display: "block", opacity: 0.22 } },
+      /*#__PURE__*/React.createElement("rect", { x: 3, y: 3, width: 18, height: 18, rx: 2, stroke: C.textDim, strokeWidth: 1.5 }),
+      /*#__PURE__*/React.createElement("line", { x1: 9, y1: 9, x2: 15, y2: 9, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
+      /*#__PURE__*/React.createElement("line", { x1: 9, y1: 13, x2: 15, y2: 13, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
+      /*#__PURE__*/React.createElement("line", { x1: 9, y1: 17, x2: 12, y2: 17, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" })
+    ), /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: C.textDim, fontWeight: 600 } }, "No trades to review yet"),
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: C.textDim, marginTop: 4, opacity: 0.7 } }, "Log your first setup to see monthly performance"));
     return /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("span", {
       className: "lbl",
       style: {
@@ -8645,6 +8747,7 @@ function NVJournal() {
       }, ruleBreaks));
     })))));
   }(), /*#__PURE__*/React.createElement(WeeklyReview, null)), tab === "Days" && /*#__PURE__*/React.createElement("div", {
+    className: "tab-panel",
     style: {
       display: "flex",
       flexDirection: "column",
@@ -8767,13 +8870,15 @@ function NVJournal() {
       }
     });
   }), days.length === 0 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center",
-      padding: 40,
-      color: C.textDim,
-      fontSize: 12
-    }
-  }, "No days logged yet"))), tab === "Log Trade" && /*#__PURE__*/React.createElement("div", {
+    style: { textAlign: "center", padding: "48px 20px" }
+  }, /*#__PURE__*/React.createElement("svg", { width: 40, height: 40, viewBox: "0 0 24 24", fill: "none", style: { margin: "0 auto 10px", display: "block", opacity: 0.22 } },
+    /*#__PURE__*/React.createElement("rect", { x: 3, y: 4, width: 18, height: 18, rx: 2, stroke: C.textDim, strokeWidth: 1.5 }),
+    /*#__PURE__*/React.createElement("line", { x1: 3, y1: 9, x2: 21, y2: 9, stroke: C.textDim, strokeWidth: 1.5 }),
+    /*#__PURE__*/React.createElement("line", { x1: 8, y1: 2, x2: 8, y2: 6, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
+    /*#__PURE__*/React.createElement("line", { x1: 16, y1: 2, x2: 16, y2: 6, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" })
+  ), /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: C.textDim, fontWeight: 600 } }, "No days logged yet"),
+  /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: C.textDim, marginTop: 4, opacity: 0.7 } }, "Log your daily bias to track accuracy over time")))), tab === "Log Trade" && /*#__PURE__*/React.createElement("div", {
+    className: "tab-panel",
     style: {
       position: "relative",
       paddingRight: 314
@@ -8837,7 +8942,7 @@ function NVJournal() {
     return /*#__PURE__*/React.createElement("option", {
       key: d
     }, d);
-  }))))), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+  }))))), /*#__PURE__*/React.createElement(Card, { style: { borderLeft: "3px solid ".concat(C.accent), paddingLeft: 13 } }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -9751,7 +9856,7 @@ function NVJournal() {
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       position: "sticky",
-      top: 62
+      top: 84
     }
   }, /*#__PURE__*/React.createElement(GradeMeter, {
     gr: gradeDisplay,
@@ -9823,7 +9928,7 @@ function NVJournal() {
       color: C.textMid,
       lineHeight: 1.5
     }
-  }, "Tradeable but missing CISD H1 or Key Zone.")))))), tab === "Macro" && /*#__PURE__*/React.createElement("div", { style:{display:"flex",flexDirection:"column",gap:12} },
+  }, "Tradeable but missing CISD H1 or Key Zone.")))))), tab === "Macro" && /*#__PURE__*/React.createElement("div", { className:"tab-panel", style:{display:"flex",flexDirection:"column",gap:12} },
     /*#__PURE__*/React.createElement("div", { style:{display:"flex",alignItems:"center",justifyContent:"space-between"} },
       /*#__PURE__*/React.createElement("span", { style:{fontSize:15,fontWeight:600,color:C.text} }, "Macro Dashboard"),
       /*#__PURE__*/React.createElement("div", { style:{display:"flex",alignItems:"center",gap:8} },
@@ -9992,6 +10097,7 @@ function NVJournal() {
       )
     )
   ), tab === "Calculator" && /*#__PURE__*/React.createElement("div", {
+    className: "tab-panel",
     style: {
       display: "flex",
       flexDirection: "column",
@@ -10015,6 +10121,7 @@ function NVJournal() {
     C: C,
     isDark: isDark
   })), tab === "Crypto" && /*#__PURE__*/React.createElement("div", {
+    className: "tab-panel",
     style: {
       display: "flex",
       flexDirection: "column",
@@ -10048,7 +10155,16 @@ function NVJournal() {
       fontFamily: "'JetBrains Mono',monospace",
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v57")), /*#__PURE__*/React.createElement("span", {
+  }, "NV JOURNAL - v59")), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 9,
+      color: C.textDim,
+      fontFamily: "'JetBrains Mono',monospace",
+      letterSpacing: ".08em",
+      opacity: 0.6,
+      marginLeft: 8
+    }
+  }, "GRADE MODEL v1"), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
       color: C.textDim,
