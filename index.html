@@ -840,7 +840,7 @@ var INIT_TRADE = function INIT_TRADE() {
     r_result: "",
     outcome: "NT",
     hypo_result: "",
-    hypo_outcome: "NT",
+    hypo_outcome: "W",
     hesitation: false,
     no_trade_reason: "",
     chart_image: "",
@@ -7532,7 +7532,13 @@ function NVJournal() {
       style: {
         color: t.trade_taken ? r > 0 ? C.green : r < 0 ? C.red : C.textDim : C.textDim
       }
-    }, t.trade_taken ? "".concat(r > 0 ? "+" : "").concat(r, "R") : "—"), /*#__PURE__*/React.createElement("span", {
+    }, t.trade_taken ? "".concat(r > 0 ? "+" : "").concat(r, "R") : (function() {
+      var hr = t.hypo_result !== "" && t.hypo_result !== undefined ? parseFloat(t.hypo_result) : null;
+      if (hr === null) return "—";
+      return /*#__PURE__*/React.createElement("span", {
+        style: { color: hr > 0 ? C.green : hr < 0 ? C.red : C.textDim, opacity: 0.55 }
+      }, "(", hr > 0 ? "+" : "", hr, "R)");
+    })()), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 9,
         color: C.textDim,
@@ -9378,7 +9384,14 @@ function NVJournal() {
   }, /*#__PURE__*/React.createElement("select", {
     value: tf.outcome,
     onChange: function onChange(e) {
-      return updTf("outcome", e.target.value);
+      return (function(v) {
+        updTf("outcome", v);
+        if (!tf.r_result || tf.r_result === "") {
+          if (v === "W") updTf("r_result", "2");
+          else if (v === "L") updTf("r_result", "-1");
+          else if (v === "BE") updTf("r_result", "0");
+        }
+      })(e.target.value);
     }
   }, OUTCOMES.map(function (o) {
     return /*#__PURE__*/React.createElement("option", {
@@ -9447,9 +9460,16 @@ function NVJournal() {
   }, /*#__PURE__*/React.createElement("select", {
     value: tf.hypo_outcome,
     onChange: function onChange(e) {
-      return updTf("hypo_outcome", e.target.value);
+      return (function(v) {
+        updTf("hypo_outcome", v);
+        if (!tf.hypo_result || tf.hypo_result === "") {
+          if (v === "W") updTf("hypo_result", "2");
+          else if (v === "L") updTf("hypo_result", "-1");
+          else if (v === "BE") updTf("hypo_result", "0");
+        }
+      })(e.target.value);
     }
-  }, OUTCOMES.map(function (o) {
+  }, ["W", "L", "BE"].map(function (o) {
     return /*#__PURE__*/React.createElement("option", {
       key: o
     }, o);
@@ -10028,7 +10048,7 @@ function NVJournal() {
       fontFamily: "'JetBrains Mono',monospace",
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v56")), /*#__PURE__*/React.createElement("span", {
+  }, "NV JOURNAL - v57")), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
       color: C.textDim,
