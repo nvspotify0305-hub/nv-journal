@@ -99,12 +99,28 @@ function _sbLoad() {
   }));
   return _sbLoad.apply(this, arguments);
 }
+// ─── OFFLINE SYNC QUEUE ───────────────────────────────────────────────────────
+var NV_QUEUE_KEY = "nv_sync_queue";
+function nvQueuePush(tbl, rec) {
+  try {
+    var q = JSON.parse(localStorage.getItem(NV_QUEUE_KEY) || "[]");
+    var filtered = q.filter(function(e) { return !(e.tbl === tbl && e.rec.id === rec.id); });
+    filtered.push({ tbl: tbl, rec: rec });
+    localStorage.setItem(NV_QUEUE_KEY, JSON.stringify(filtered));
+  } catch(e) {}
+}
+function nvQueueGet() {
+  try { return JSON.parse(localStorage.getItem(NV_QUEUE_KEY) || "[]"); } catch(e) { return []; }
+}
+function nvQueueClear() {
+  try { localStorage.removeItem(NV_QUEUE_KEY); } catch(e) {}
+}
 function sbSave(_x2, _x3) {
   return _sbSave.apply(this, arguments);
 }
 function _sbSave() {
   _sbSave = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee1(tbl, rec) {
-    var _t3;
+    var _t3, res;
     return _regenerator().w(function (_context1) {
       while (1) switch (_context1.p = _context1.n) {
         case 0:
@@ -121,12 +137,15 @@ function _sbSave() {
             })
           });
         case 1:
+          res = _context1.v;
+          if (!res.ok) { nvQueuePush(tbl, rec); }
           _context1.n = 3;
           break;
         case 2:
           _context1.p = 2;
           _t3 = _context1.v;
-          console.warn("sbSave failed", _t3);
+          console.warn("sbSave failed — queued", _t3);
+          nvQueuePush(tbl, rec);
         case 3:
           return _context1.a(2);
       }
@@ -291,7 +310,7 @@ var KEY_ZONES = ["Daily FVG", "H4 FVG", "H1 FVG", "IFVG", "PDH", "PDL", "Swing H
 var H1_PHASES = ["Consolidation", "Manipulation", "Continuation", "Expansion"];
 var OUTCOMES = ["Win", "Loss", "BE", "NT"];
 var NO_TRADE_R = ["Lack of RR", "Poor Entry Timing", "News", "Choppy PA", "Opposing Key Level", "No Setup", "Missed", "Non-Executable C5+", "Other"];
-var TABS = ["Dashboard", "Trades", "Review", "Days", "Log Trade", "Macro", "Calculator", "Crypto"];
+var TABS = ["Dashboard", "Trades", "Review", "Days", "Log Trade", "Prop Firms", "Calculator", "Crypto"];
 var MIN_SAMPLE = 3;
 
 // ── Unified confluence model v4 ──────────────────────────────────────────────
@@ -352,7 +371,7 @@ var CONF_ALL = [{
 // Legacy alias
 var ALL_CONFS = CONF_ALL;
 
-// ─── GRADE ENGINE v4 ─────────────────────────────────────────────────────────
+// ─── GRADE ENGINE v1 ─────────────────────────────────────────────────────────
 // HTF alignment gates grade ceiling — derived from bias dropdowns.
 // A+ = full Daily+H4+H1 align + CISD H1 + 5M CISD + sweep combo + Key Zone.
 // A  = any 2 HTFs aligned + CISD H1 + Key Zone + 1 major signal.
@@ -374,7 +393,7 @@ function calcGrade(s) {
       grade: "B",
       pts: 0,
       score: 0,
-      maxPts: 33,
+      maxPts: 35,
       tradeable: false,
       blocked: "C5+ on entry timeframe — not tradeable",
       modelType: "",
@@ -392,7 +411,7 @@ function calcGrade(s) {
       grade: "B",
       pts: 0,
       score: 0,
-      maxPts: 33,
+      maxPts: 35,
       tradeable: false,
       blocked: "H1 bias conflicts with direction",
       modelType: "",
@@ -419,7 +438,7 @@ function calcGrade(s) {
       grade: "B",
       pts: 0,
       score: 0,
-      maxPts: 33,
+      maxPts: 35,
       tradeable: false,
       blocked: "Fewer than 2 HTFs aligned — H4+H1 or Daily+H1 minimum required",
       modelType: "",
@@ -442,7 +461,7 @@ function calcGrade(s) {
       grade: "B",
       pts: 0,
       score: 0,
-      maxPts: 33,
+      maxPts: 35,
       tradeable: false,
       blocked: "No sweep and no SMT — at least one required",
       modelType: "",
@@ -476,10 +495,11 @@ function calcGrade(s) {
   score += h4Ok ? 2 : 0;
   score += 1; // H1 always aligned (hard block above guarantees this)
   var hasKeyZone = !!(s.key_zone && s.key_zone !== "None");
+  score += hasKeyZone ? 2 : 0;
   var phase = s.h1_phase || "";
   var phaseBonus = phase === "Expansion" ? 2 : phase === "Continuation" ? 1 : 0;
   score += phaseBonus;
-  score = Math.min(score, 33);
+  score = Math.min(score, 35);
 
   // ── Sweep combo — valid pairs for A+: H4+H1, H4sw+H1smt, H1sw+H4smt, H4smt+H1smt ──
   var comboSweep = hasSweepH4 && hasSweepH1 || hasSweepH4 && hasSMTH1 || hasSweepH1 && hasSMTH4 || hasSMTH4 && hasSMTH1;
@@ -520,7 +540,7 @@ function calcGrade(s) {
   var alCap = fullAlign ? "A+ eligible" : "Max grade: A";
   var htfPts = (dailyOk ? 2 : 0) + (h4Ok ? 2 : 0) + 1;
   addR("HTF Alignment", true, "".concat(alLabel, " \xB7 ").concat(alCap), htfPts);
-  addR("Key Zone", hasKeyZone, hasKeyZone ? s.key_zone : "MISSING");
+  addR("Key Zone", hasKeyZone, hasKeyZone ? s.key_zone : "MISSING", hasKeyZone ? 2 : 0);
   addR("CISD H1", cisdH1, cisdH1 ? "✓" : "MISSING", cisdH1 ? 3 : 0);
   addR("5M CISD", cisd5M, cisd5M ? "✓" : fullAlign ? "needed for A+" : "", cisd5M ? 2 : 0);
   addR("Sweep Combo", comboSweep, comboSweep ? "✓" : fullAlign ? "needed for A+" : "");
@@ -543,7 +563,7 @@ function calcGrade(s) {
     grade: grade,
     pts: score,
     score: score,
-    maxPts: 33,
+    maxPts: 35,
     tradeable: true,
     blocked: null,
     modelType: modelType,
@@ -569,7 +589,7 @@ var DARK = {
   yellow: "#fbbf24",
   text: "#f0f0f0",
   textMid: "#888",
-  textDim: "#555",
+  textDim: "#777",
   inputBg: "#1c1c1c",
   shadow: "none",
   shadowElevated: "0 0 0 1px #333",
@@ -591,7 +611,7 @@ var LIGHT = {
   yellow: "#8a6500",
   text: "#000",
   textMid: "#444",
-  textDim: "#999",
+  textDim: "#777",
   inputBg: "#fff",
   shadow: "0 1px 3px rgba(0,0,0,0.08)",
   shadowElevated: "0 2px 8px rgba(0,0,0,0.13)",
@@ -599,6 +619,9 @@ var LIGHT = {
   gradeA: "#1a4fa0",
   gradeB: "#c0392b"
 };
+
+var F_MONO = "'JetBrains Mono',monospace";
+var F_DISPLAY = "'Bebas Neue',sans-serif";
 
 // ─── STORAGE ──────────────────────────────────────────────────────────────────
 function useStorage(key, init) {
@@ -820,7 +843,7 @@ var INIT_TRADE = function INIT_TRADE() {
     r_result: "",
     outcome: "NT",
     hypo_result: "",
-    hypo_outcome: "NT",
+    hypo_outcome: "W",
     hesitation: false,
     no_trade_reason: "",
     chart_image: "",
@@ -831,8 +854,12 @@ var INIT_DAY = function INIT_DAY() {
   return {
     date: today(),
     bias: "Bullish",
-    outcome: "",
+    bias_am: "",
+    bias_pm: "",
+    flip_time: "",
     notes: "",
+    notes_am: "",
+    outcome: "",
     confirmed: false
   };
 };
@@ -948,7 +975,7 @@ function GradeMeter(_ref2) {
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: 56,
       color: gc,
       lineHeight: 1
@@ -957,9 +984,9 @@ function GradeMeter(_ref2) {
     style: {
       fontSize: 11,
       color: C.textMid,
-      fontFamily: "'JetBrains Mono',monospace"
+      fontFamily: F_MONO
     }
-  }, score, "/", maxPts || 20, " pts"), /*#__PURE__*/React.createElement("div", {
+  }, score, "/", maxPts || 35, " pts"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: statusColor,
@@ -981,7 +1008,7 @@ function GradeMeter(_ref2) {
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       height: "100%",
-      width: "".concat(score / (maxPts || 20) * 100, "%"),
+      width: "".concat(score / (maxPts || 35) * 100, "%"),
       background: gc,
       borderRadius: 3,
       transition: "width .4s"
@@ -1033,7 +1060,7 @@ function GradeMeter(_ref2) {
       style: {
         fontSize: 9,
         color: C.textDim,
-        fontFamily: "'JetBrains Mono',monospace"
+        fontFamily: F_MONO
       }
     }, r.note), r.pts > 0 && /*#__PURE__*/React.createElement("span", {
       style: {
@@ -1127,7 +1154,7 @@ function TradeDetail(_ref3) {
         padding: "4px 8px",
         color: C.text,
         fontSize: 11,
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         boxSizing: "border-box"
       }, props.style)
     }));
@@ -1281,7 +1308,7 @@ function TradeDetail(_ref3) {
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: 28,
       color: gc
     }
@@ -1295,7 +1322,7 @@ function TradeDetail(_ref3) {
     style: {
       fontSize: 10,
       color: C.textDim,
-      fontFamily: "'JetBrains Mono',monospace"
+      fontFamily: F_MONO
     }
   }, T.date))), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1393,7 +1420,7 @@ function TradeDetail(_ref3) {
     }, l), /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 14,
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         color: col
       }
     }, v));
@@ -1589,7 +1616,7 @@ function TradeDetail(_ref3) {
       }
     }, bias), /*#__PURE__*/React.createElement("div", {
       style: {
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 16,
         color: cc
       }
@@ -2348,7 +2375,7 @@ function DonutChart(_ref12) {
       style: {
         fontSize: 11,
         color: C.text,
-        fontFamily: "'JetBrains Mono',monospace"
+        fontFamily: F_MONO
       }
     }, p.label), /*#__PURE__*/React.createElement("span", {
       style: {
@@ -2585,7 +2612,7 @@ function CryptoTracker(_ref13) {
   });
   var statStyle = function statStyle(col) {
     return {
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: 28,
       color: col,
       lineHeight: 1
@@ -2597,7 +2624,7 @@ function CryptoTracker(_ref13) {
     border: "1px solid ".concat(isDark ? "#333" : "#ccc"),
     borderRadius: 4,
     padding: "3px 7px",
-    fontFamily: "'JetBrains Mono',monospace",
+    fontFamily: F_MONO,
     fontSize: 11,
     width: "90px",
     outline: "none"
@@ -2642,7 +2669,7 @@ function CryptoTracker(_ref13) {
         color: C.textDim,
         fontWeight: 600,
         display: "block",
-        marginBottom: 4
+        marginBottom: 6
       }
     }, l), /*#__PURE__*/React.createElement("div", {
       style: statStyle(col)
@@ -2870,7 +2897,7 @@ function CryptoTracker(_ref13) {
     })), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 10px",
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 17,
         color: C.accent
       }
@@ -2890,7 +2917,7 @@ function CryptoTracker(_ref13) {
       }
     }) : /*#__PURE__*/React.createElement("span", {
       style: {
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.textMid
       }
@@ -2910,7 +2937,7 @@ function CryptoTracker(_ref13) {
       }
     }) : /*#__PURE__*/React.createElement("span", {
       style: {
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.textMid
       }
@@ -2919,7 +2946,7 @@ function CryptoTracker(_ref13) {
     }))), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 10px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.textMid
       }
@@ -2928,7 +2955,7 @@ function CryptoTracker(_ref13) {
     })), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 10px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: h.price ? C.text : C.textDim
       }
@@ -2937,7 +2964,7 @@ function CryptoTracker(_ref13) {
     })) : "—"), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 10px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: h.price ? C.text : C.textDim
       }
@@ -2946,7 +2973,7 @@ function CryptoTracker(_ref13) {
     })) : "—"), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 10px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: h.price ? col : C.textDim
       }
@@ -2955,14 +2982,14 @@ function CryptoTracker(_ref13) {
     })) : "—"), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 10px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: h.price ? col : C.textDim
       }
     }, h.price ? "".concat(h.pnlPct >= 0 ? "+" : "").concat(h.pnlPct.toFixed(1), "%") : "—"), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 10px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.textMid
       }
@@ -3056,7 +3083,8 @@ function DayRow(_ref19) {
     isDark = _ref19.isDark,
     onConfirm = _ref19.onConfirm,
     onSave = _ref19.onSave,
-    onDelete = _ref19.onDelete;
+    onDelete = _ref19.onDelete,
+    onFlip = _ref19.onFlip;
   var _useState27 = useState(false),
     _useState28 = _slicedToArray(_useState27, 2),
     editing = _useState28[0],
@@ -3075,6 +3103,20 @@ function DayRow(_ref19) {
     onSave(_objectSpread({}, ed));
     setEditing(false);
   };
+  // Bias display — shows AM→PM flip if flip_time exists
+  var biasDisplay = d.flip_time
+    ? /*#__PURE__*/React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:5, flexWrap:"wrap" } },
+        /*#__PURE__*/React.createElement("span", { style:{ fontSize:9, padding:"2px 7px", borderRadius:3,
+          background:(d.bias_am==="Bullish"?C.green:C.red)+"22",
+          color:d.bias_am==="Bullish"?C.green:C.red, fontWeight:700 } }, "AM ", d.bias_am||d.bias),
+        /*#__PURE__*/React.createElement("span", { style:{ fontSize:10, color:C.textDim } }, "→"),
+        /*#__PURE__*/React.createElement("span", { style:{ fontSize:9, padding:"2px 7px", borderRadius:3,
+          background:(d.bias==="Bullish"?C.green:C.red)+"22",
+          color:d.bias==="Bullish"?C.green:C.red, fontWeight:700 } }, "PM ", d.bias),
+        /*#__PURE__*/React.createElement("span", { style:{ fontSize:9, color:C.textDim } }, d.flip_time)
+      )
+    : /*#__PURE__*/React.createElement("span", { style:{ color:d.bias==="Bullish"?C.green:d.bias==="Bearish"?C.red:C.textMid, fontWeight:600 } }, d.bias);
+
   return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "9px 12px",
@@ -3082,260 +3124,90 @@ function DayRow(_ref19) {
       borderRadius: 8,
       border: "1px solid ".concat(isPending ? C.yellow : editing ? C.accent : C.border),
       fontSize: 11,
-      fontFamily: "'JetBrains Mono',monospace",
+      fontFamily: F_MONO,
       boxShadow: C.shadow
     }
   }, !editing ? /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "100px 90px 1fr 1fr 60px",
+      gridTemplateColumns: "100px 1fr 1fr 1fr 80px",
       gap: 8,
       alignItems: "center"
     }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: C.textMid
-    }
-  }, d.date), /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: d.bias === "Bullish" ? C.green : d.bias === "Bearish" ? C.red : C.textMid,
-      fontWeight: 600
-    }
-  }, d.bias), isPending ? /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 6,
-      gridColumn: "3/5"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 10,
-      color: C.yellow
-    }
-  }, "\u23F3 Awaiting confirmation"), /*#__PURE__*/React.createElement("select", {
+  }, /*#__PURE__*/React.createElement("span", { style:{ color:C.textMid } }, d.date),
+  biasDisplay,
+  isPending ? /*#__PURE__*/React.createElement("div", {
+    style: { display:"flex", alignItems:"center", gap:6, gridColumn:"3/5" }
+  }, /*#__PURE__*/React.createElement("span", { style:{ fontSize:10, color:C.yellow } }, "\u23F3 Awaiting confirmation"),
+  /*#__PURE__*/React.createElement("select", {
     defaultValue: "",
     onChange: function onChange(e) {
       if (!e.target.value) return;
       onConfirm(d.id, e.target.value);
     },
-    style: {
-      fontSize: 10,
-      padding: "2px 6px",
-      background: isDark ? "#0d0d0d" : "#fff",
-      color: C.text,
-      border: "1px solid ".concat(C.yellow),
-      borderRadius: 4
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: ""
-  }, "Confirm..."), BIAS_OUT.map(function (b) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: b
-    }, b);
-  }))) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: bc,
-      fontWeight: 600
-    }
-  }, d.outcome), /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: C.textDim,
-      overflow: "hidden",
-      whiteSpace: "nowrap",
-      textOverflow: "ellipsis"
-    }
-  }, d.notes)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 4,
-      justifyContent: "flex-end"
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: function onClick() {
-      setEd(d);
-      setEditing(true);
-    },
-    style: {
-      background: "transparent",
-      border: "1px solid ".concat(C.border),
-      color: C.textDim,
-      borderRadius: 4,
-      padding: "2px 7px",
-      fontSize: 9,
-      cursor: "pointer"
-    }
-  }, "\u270F"), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: function onClick() {
-      return onDelete(d.id);
-    },
-    style: {
-      background: "transparent",
-      border: "1px solid ".concat(C.border),
-      color: C.textDim,
-      borderRadius: 4,
-      padding: "2px 6px",
-      fontSize: 9,
-      cursor: "pointer"
-    }
-  }, "\u2715"))) : /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 8
-    }
+    style: { fontSize:10, padding:"2px 6px", background:isDark?"#0d0d0d":"#fff", color:C.text, border:"1px solid ".concat(C.yellow), borderRadius:4 }
+  }, /*#__PURE__*/React.createElement("option", { value:"" }, "Confirm..."),
+  BIAS_OUT.map(function (b) { return /*#__PURE__*/React.createElement("option", { key:b }, b); })))
+  : /*#__PURE__*/React.createElement(React.Fragment, null,
+      /*#__PURE__*/React.createElement("span", { style:{ color:bc, fontWeight:600 } }, d.outcome),
+      /*#__PURE__*/React.createElement("span", { style:{ color:C.textDim, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" } }, d.notes)
+    ),
+  /*#__PURE__*/React.createElement("div", { style:{ display:"flex", gap:4, justifyContent:"flex-end" } },
+    /*#__PURE__*/React.createElement("button", {
+      type:"button",
+      onClick: function onClick() { setEd(d); setEditing(true); },
+      style:{ background:"transparent", border:"1px solid ".concat(C.border), color:C.textDim, borderRadius:4, padding:"2px 7px", fontSize:9, cursor:"pointer" }
+    }, "\u270F"),
+    !d.flip_time && /*#__PURE__*/React.createElement("button", {
+      type:"button",
+      title:"Flip bias",
+      onClick: function onClick() {
+        var nb = d.bias === "Bullish" ? "Bearish" : "Bullish";
+        if (window.confirm("Flip bias to " + nb + "?")) { onFlip && onFlip(d, nb); }
+      },
+      style:{ background:"transparent", border:"1px solid ".concat(C.yellow+"66"), color:C.yellow, borderRadius:4, padding:"2px 7px", fontSize:9, cursor:"pointer" }
+    }, "\u21c4"),
+    /*#__PURE__*/React.createElement("button", {
+      type:"button",
+      onClick: function onClick() { return onDelete(d.id); },
+      style:{ background:"transparent", border:"1px solid ".concat(C.border), color:C.textDim, borderRadius:4, padding:"2px 6px", fontSize:9, cursor:"pointer" }
+    }, "\u2715")
+  )) : /*#__PURE__*/React.createElement("div", {
+    style: { display:"flex", flexDirection:"column", gap:8 }
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr 1fr",
-      gap: 8
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 9,
-      color: C.textDim,
-      marginBottom: 3
-    }
-  }, "DATE"), /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    value: ed.date,
-    onChange: function onChange(e) {
-      return setEd(function (p) {
-        return _objectSpread(_objectSpread({}, p), {}, {
-          date: e.target.value
-        });
-      });
-    },
-    style: {
-      width: "100%",
-      background: C.inputBg,
-      border: "1px solid ".concat(C.border),
-      borderRadius: 4,
-      padding: "4px 6px",
-      color: C.text,
-      fontSize: 11,
-      boxSizing: "border-box"
-    }
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 9,
-      color: C.textDim,
-      marginBottom: 3
-    }
-  }, "BIAS"), /*#__PURE__*/React.createElement("select", {
-    value: ed.bias,
-    onChange: function onChange(e) {
-      return setEd(function (p) {
-        return _objectSpread(_objectSpread({}, p), {}, {
-          bias: e.target.value
-        });
-      });
-    },
-    style: {
-      width: "100%",
-      background: C.inputBg,
-      border: "1px solid ".concat(C.border),
-      borderRadius: 4,
-      padding: "4px 6px",
-      color: C.text,
-      fontSize: 11,
-      boxSizing: "border-box"
-    }
-  }, BIAS_OPTS.map(function (b) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: b
-    }, b);
-  }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 9,
-      color: C.textDim,
-      marginBottom: 3
-    }
-  }, "OUTCOME"), /*#__PURE__*/React.createElement("select", {
-    value: ed.outcome || "",
-    onChange: function onChange(e) {
-      return setEd(function (p) {
-        return _objectSpread(_objectSpread({}, p), {}, {
-          outcome: e.target.value
-        });
-      });
-    },
-    style: {
-      width: "100%",
-      background: C.inputBg,
-      border: "1px solid ".concat(C.border),
-      borderRadius: 4,
-      padding: "4px 6px",
-      color: C.text,
-      fontSize: 11,
-      boxSizing: "border-box"
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: ""
-  }, "Pending"), BIAS_OUT.map(function (b) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: b
-    }, b);
-  })))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 9,
-      color: C.textDim,
-      marginBottom: 3
-    }
-  }, "NOTES"), /*#__PURE__*/React.createElement("input", {
-    value: ed.notes || "",
-    onChange: function onChange(e) {
-      return setEd(function (p) {
-        return _objectSpread(_objectSpread({}, p), {}, {
-          notes: e.target.value
-        });
-      });
-    },
-    style: {
-      width: "100%",
-      background: C.inputBg,
-      border: "1px solid ".concat(C.border),
-      borderRadius: 4,
-      padding: "4px 6px",
-      color: C.text,
-      fontSize: 11,
-      boxSizing: "border-box"
-    }
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 8
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: saveEd,
-    style: {
-      padding: "4px 14px",
-      background: C.accent,
-      border: "none",
-      color: isDark ? "#000" : "#fff",
-      borderRadius: 5,
-      fontSize: 11,
-      fontWeight: 700,
-      cursor: "pointer"
-    }
-  }, "\u2713 Save"), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: function onClick() {
-      return setEditing(false);
-    },
-    style: {
-      padding: "4px 14px",
-      background: "transparent",
-      border: "1px solid ".concat(C.border),
-      color: C.textMid,
-      borderRadius: 5,
-      fontSize: 11,
-      cursor: "pointer"
-    }
-  }, "Cancel"))));
+    style: { display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }
+  }, /*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("div", { style:{ fontSize:9, color:C.textDim, marginBottom:3 } }, "DATE"),
+    /*#__PURE__*/React.createElement("input", { type:"date", value:ed.date,
+      onChange: function onChange(e) { return setEd(function (p) { return _objectSpread(_objectSpread({}, p), {}, { date:e.target.value }); }); },
+      style:{ width:"100%", background:C.inputBg, border:"1px solid ".concat(C.border), borderRadius:4, padding:"4px 6px", color:C.text, fontSize:11, boxSizing:"border-box" }
+    })),
+  /*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("div", { style:{ fontSize:9, color:C.textDim, marginBottom:3 } }, "BIAS"),
+    /*#__PURE__*/React.createElement("select", { value:ed.bias,
+      onChange: function onChange(e) { return setEd(function (p) { return _objectSpread(_objectSpread({}, p), {}, { bias:e.target.value }); }); },
+      style:{ width:"100%", background:C.inputBg, border:"1px solid ".concat(C.border), borderRadius:4, padding:"4px 6px", color:C.text, fontSize:11, boxSizing:"border-box" }
+    }, BIAS_OPTS.map(function (b) { return /*#__PURE__*/React.createElement("option", { key:b }, b); }))),
+  /*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("div", { style:{ fontSize:9, color:C.textDim, marginBottom:3 } }, "OUTCOME"),
+    /*#__PURE__*/React.createElement("select", { value:ed.outcome||"",
+      onChange: function onChange(e) { return setEd(function (p) { return _objectSpread(_objectSpread({}, p), {}, { outcome:e.target.value }); }); },
+      style:{ width:"100%", background:C.inputBg, border:"1px solid ".concat(C.border), borderRadius:4, padding:"4px 6px", color:C.text, fontSize:11, boxSizing:"border-box" }
+    }, /*#__PURE__*/React.createElement("option", { value:"" }, "Pending"),
+    BIAS_OUT.map(function (b) { return /*#__PURE__*/React.createElement("option", { key:b }, b); })))),
+  /*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("div", { style:{ fontSize:9, color:C.textDim, marginBottom:3 } }, "NOTES"),
+    /*#__PURE__*/React.createElement("input", { value:ed.notes||"",
+      onChange: function onChange(e) { return setEd(function (p) { return _objectSpread(_objectSpread({}, p), {}, { notes:e.target.value }); }); },
+      style:{ width:"100%", background:C.inputBg, border:"1px solid ".concat(C.border), borderRadius:4, padding:"4px 6px", color:C.text, fontSize:11, boxSizing:"border-box" }
+    })),
+  /*#__PURE__*/React.createElement("div", { style:{ display:"flex", gap:8 } },
+    /*#__PURE__*/React.createElement("button", { type:"button", onClick:saveEd,
+      style:{ padding:"4px 14px", background:C.accent, border:"none", color:isDark?"#000":"#fff", borderRadius:5, fontSize:11, fontWeight:700, cursor:"pointer" }
+    }, "\u2713 Save"),
+    /*#__PURE__*/React.createElement("button", { type:"button", onClick:function onClick(){ return setEditing(false); },
+      style:{ padding:"4px 14px", background:"transparent", border:"1px solid ".concat(C.border), color:C.textMid, borderRadius:5, fontSize:11, cursor:"pointer" }
+    }, "Cancel"))));
 }
 
 // ─── THEME CONTEXT ────────────────────────────────────────────────────────────
@@ -3380,6 +3252,23 @@ function CardElevated(_ref21) {
     }, style)
   }, children);
 }
+// ─── TOAST NOTIFICATION ──────────────────────────────────────────────────────
+function ToastBar(_ref22t) {
+  var toast = _ref22t.toast;
+  var _useThemeT = useTheme(), C = _useThemeT.C;
+  if (!toast) return null;
+  var bg = toast.type === "error" ? C.red : toast.type === "warn" ? C.yellow : C.green;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+      background: bg, color: "#fff", borderRadius: 8,
+      padding: "10px 20px", fontSize: 12, fontFamily: F_MONO,
+      fontWeight: 500, zIndex: 9999, pointerEvents: "none",
+      boxShadow: "0 4px 16px rgba(0,0,0,0.25)", whiteSpace: "nowrap",
+      animation: "fadeUp .18s ease forwards"
+    }
+  }, toast.msg);
+}
 function GradeBadge(_ref22) {
   var grade = _ref22.grade,
     _ref22$size = _ref22.size,
@@ -3390,7 +3279,7 @@ function GradeBadge(_ref22) {
   var fs = size === "lg" ? 28 : size === "xl" ? 42 : 14;
   return /*#__PURE__*/React.createElement("span", {
     style: {
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: fs,
       color: gc,
       lineHeight: 1
@@ -3405,7 +3294,7 @@ function Sect(_ref23) {
     C = _useTheme4.C;
   return /*#__PURE__*/React.createElement("div", {
     style: _objectSpread({
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: 15,
       letterSpacing: ".14em",
       color: C.textMid,
@@ -3533,28 +3422,70 @@ function Stat(_ref27) {
     color = _ref27.color,
     sub = _ref27.sub,
     _ref27$size = _ref27.size,
-    size = _ref27$size === void 0 ? "md" : _ref27$size;
+    size = _ref27$size === void 0 ? "md" : _ref27$size,
+    hero = _ref27.hero,
+    heroColor = _ref27.heroColor;
   var _useTheme7 = useTheme(),
-    C = _useTheme7.C;
-  var fs = size === "xl" ? 42 : size === "lg" ? 26 : size === "sm" ? 13 : 18;
-  return /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("span", {
+    C = _useTheme7.C,
+    isDark = _useTheme7.isDark;
+  var fs = size === "xl" ? 48 : size === "lg" ? 26 : size === "sm" ? 13 : 18;
+  var heroStyle = hero ? {
+    borderLeft: "3px solid ".concat(heroColor || C.border),
+    background: (color && color !== C.text && color !== C.border) ? color.replace(/^(#[0-9a-fA-F]{3,6})$/, function(h){ return h; }) + (isDark ? "12" : "10") : "transparent"
+  } : {};
+  return /*#__PURE__*/React.createElement(Card, { style: heroStyle }, /*#__PURE__*/React.createElement("span", {
     className: "lbl"
   }, label), /*#__PURE__*/React.createElement("div", {
     style: {
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: fs,
       color: color || C.text,
-      lineHeight: 1.05,
+      lineHeight: 1,
       marginTop: 2
     }
   }, value), sub && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
       color: C.textDim,
-      fontFamily: "'JetBrains Mono',monospace",
+      fontFamily: F_MONO,
       marginTop: 3
     }
   }, sub));
+}
+
+// ─── TOGGLE3 ──────────────────────────────────────────────────────────────────
+function Toggle3(_ref_t3) {
+  var val = _ref_t3.val, a = _ref_t3.a, b = _ref_t3.b, c = _ref_t3.c, onChange = _ref_t3.onChange;
+  var _th3 = useTheme(), C = _th3.C, isDark = _th3.isDark;
+  return React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 2,
+      background: isDark ? "#000" : C.surfaceHigh,
+      borderRadius: 7,
+      padding: 3,
+      border: "1px solid " + C.border
+    }
+  },
+    [a, b, c].map(function(opt) {
+      return React.createElement("button", {
+        key: opt,
+        type: "button",
+        onClick: function(){ onChange(opt); },
+        style: {
+          padding: "4px 14px",
+          borderRadius: 5,
+          border: "none",
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: ".04em",
+          background: val === opt ? C.accent : "transparent",
+          color: val === opt ? (isDark ? "#000" : "#fff") : C.textMid,
+          cursor: "pointer"
+        }
+      }, opt);
+    })
+  );
 }
 
 // ─── POSITION CALCULATOR ──────────────────────────────────────────────────────
@@ -3598,7 +3529,7 @@ function PositionCalc(_ref28) {
     border: "1px solid ".concat(isDark ? "#333" : "#ccc"),
     borderRadius: 5,
     padding: "7px 10px",
-    fontFamily: "'JetBrains Mono',monospace",
+    fontFamily: F_MONO,
     fontSize: 13,
     width: "100%",
     outline: "none",
@@ -3783,7 +3714,7 @@ function PositionCalc(_ref28) {
       }
     }, l), /*#__PURE__*/React.createElement("div", {
       style: {
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 24,
         color: col
       }
@@ -3809,7 +3740,7 @@ function PositionCalc(_ref28) {
         color: fxSelected.includes(p.sym) ? C.accent : C.textDim,
         fontSize: 11,
         fontWeight: fxSelected.includes(p.sym) ? 700 : 400,
-        fontFamily: "'JetBrains Mono',monospace"
+        fontFamily: F_MONO
       }
     }, p.sym);
   })), fxResults.length > 0 && /*#__PURE__*/React.createElement("div", {
@@ -3844,7 +3775,7 @@ function PositionCalc(_ref28) {
     }, /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 16,
         color: ["EURUSD", "GBPUSD"].includes(p.sym) ? C.accent : C.textMid
       }
@@ -3857,42 +3788,42 @@ function PositionCalc(_ref28) {
     }, p.name), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.textMid
       }
     }, "$", p.pipVal), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 20,
         color: p.stdLots >= 1 ? C.green : C.yellow
       }
     }, p.stdLots), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 20,
         color: C.green
       }
     }, p.miniLots), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 20,
         color: C.green
       }
     }, p.microLots), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.red
       }
     }, "$", p.actualRisk.toLocaleString()), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.yellow
       }
@@ -3960,7 +3891,7 @@ function PositionCalc(_ref28) {
     }, /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 16,
         color: ["6E", "M6E", "6B", "M6B"].includes(a.sym) ? C.accent : C.textMid
       }
@@ -3973,40 +3904,54 @@ function PositionCalc(_ref28) {
     }, a.name), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.textMid
       }
     }, "$", a.tickVal), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.red
       }
     }, "$", a.rpc), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 22,
         color: a.contracts > 0 ? C.green : C.textDim
       }
     }, a.contracts), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.red
       }
     }, "$", a.actualRisk.toLocaleString()), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.yellow
       }
     }, a.actualRiskPct, "%"));
   }))))));
+}
+function DashboardSkeleton() {
+  return React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12, padding: "18px 16px" } },
+    React.createElement("div", { className: "skel", style: { height: 80, borderRadius: 10, background: "#333" } }),
+    React.createElement("div", { className: "skel", style: { height: 120, borderRadius: 10, background: "#333" } }),
+    React.createElement("div", { className: "skel", style: { height: 60, borderRadius: 10, background: "#333" } })
+  );
+}
+function EmptyState(props) {
+  return React.createElement("div", { style: { textAlign: "center", padding: "48px 24px" } },
+    React.createElement("div", { style: { fontSize: 32, marginBottom: 8 } }, props.icon),
+    React.createElement("div", { style: { fontSize: 14, fontWeight: 600, marginBottom: 4, color: "#888" } }, props.title),
+    props.hint && React.createElement("div", { style: { fontSize: 11, opacity: 0.6, color: "#aaa" } }, props.hint)
+  );
 }
 function NVJournal() {
   var _TZ_MAP$tz;
@@ -4029,6 +3974,16 @@ function NVJournal() {
     _useState32 = _slicedToArray(_useState31, 2),
     now = _useState32[0],
     setNow = _useState32[1];
+  var _useStateToast = useState(null),
+    _useStateToast2 = _slicedToArray(_useStateToast, 2),
+    toast = _useStateToast2[0],
+    setToast = _useStateToast2[1];
+  var showToast = function showToast(msg) {
+    var type = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : "success";
+    var dur = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 2800;
+    setToast({ msg: msg, type: type });
+    setTimeout(function () { setToast(null); }, dur);
+  };
   useEffect(function () {
     var t = setInterval(function () {
       return setNow(new Date());
@@ -4091,6 +4046,37 @@ function NVJournal() {
     _useState42 = _slicedToArray(_useState41, 2),
     syncError = _useState42[0],
     setSyncError = _useState42[1];
+  var _useState41b = useState(function() { return nvQueueGet().length > 0; }),
+    _useState42b = _slicedToArray(_useState41b, 2),
+    pendingSync = _useState42b[0],
+    setPendingSync = _useState42b[1];
+  useEffect(function() {
+    var interval = setInterval(function() {
+      var q = nvQueueGet();
+      setPendingSync(q.length > 0);
+      if (!navigator.onLine || q.length === 0) return;
+      Promise.all(q.map(function(e) {
+        return fetch(SB_URL + "/rest/v1/" + e.tbl, {
+          method: "POST",
+          headers: _objectSpread(_objectSpread({}, SBH), {}, {
+            "Prefer": "resolution=merge-duplicates,return=representation"
+          }),
+          body: JSON.stringify({ id: e.rec.id, data: e.rec })
+        }).then(function(r) { return r.ok ? e : null; })
+          .catch(function() { return null; });
+      })).then(function(results) {
+        var failed = q.filter(function(e, i) { return results[i] === null; });
+        if (failed.length === 0) {
+          nvQueueClear();
+          setPendingSync(false);
+        } else {
+          try { localStorage.setItem(NV_QUEUE_KEY, JSON.stringify(failed)); } catch(ex) {}
+          setPendingSync(true);
+        }
+      });
+    }, 30000);
+    return function() { return clearInterval(interval); };
+  }, []);
   useEffect(function () {
     try {
       localStorage.setItem("nv_trades_v5", JSON.stringify(trades));
@@ -4184,6 +4170,7 @@ function NVJournal() {
       behavior: "instant"
     });
     setTab(t);
+    setSelectedGalleryId(null);
   }
   var _useState45 = useState("All"),
     _useState46 = _slicedToArray(_useState45, 2),
@@ -4197,6 +4184,9 @@ function NVJournal() {
     _useState50 = _slicedToArray(_useState49, 2),
     tradesView = _useState50[0],
     setTradesView = _useState50[1];
+  var _useStateSGI = React.useState(null), selectedGalleryId = _useStateSGI[0], setSelectedGalleryId = _useStateSGI[1];
+  var _useStateLB = React.useState(null), lightboxImg = _useStateLB[0], setLightboxImg = _useStateLB[1];
+  var _useStateGIO = React.useState(true), galleryImgOnly = _useStateGIO[0], setGalleryImgOnly = _useStateGIO[1];
   var _useState51 = useState({
       grade: "All",
       session: "All",
@@ -4292,161 +4282,29 @@ function NVJournal() {
     localStorage.setItem("nv_calc_ticks", calcTicks);
   }, [calcTicks]);
 
-  // ── Alpha Vantage key ──
-  var _useStateAV = React.useState(function(){ try{return localStorage.getItem("nv_av_key")||"";}catch(e){return "";} }),
-    avKey = _useStateAV[0], setAvKey = function(v){ _useStateAV[1](v); try{localStorage.setItem("nv_av_key",v);}catch(e){} };
-
-  // ── Macro state ──
-  var _useStateMD = React.useState(null), macroData = _useStateMD[0], setMacroData = _useStateMD[1];
-  var _useStateML = React.useState(false), macroLoading = _useStateML[0], setMacroLoading = _useStateML[1];
-  var _useStateME = React.useState(""), macroError = _useStateME[0], setMacroError = _useStateME[1];
-  var _useStateMT = React.useState(""), macroTs = _useStateMT[0], setMacroTs = _useStateMT[1];
-  var _useStateMF = React.useState("fx"), macroFilter = _useStateMF[0], setMacroFilter = _useStateMF[1];
-  var _useStateMN = React.useState("all"), macroNewsFilter = _useStateMN[0], setMacroNewsFilter = _useStateMN[1];
-
   // ── AI notes state ──
   var _useStateAI = React.useState(false), aiNotesLoading = _useStateAI[0], setAiNotesLoading = _useStateAI[1];
 
-  // ── Macro fetch ──
-  // ── Cloudflare Worker URL — single source of truth ──
-  var WORKER_URL = "https://nv-macro.nv-trading23.workers.dev";
-  var AV_KEY = "8QJUDGKY58GBEIEZ";
-
-  function processRawData(fx, gold, news) {
-    var curs = ["USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD"];
-    var strength = {}; curs.forEach(function(c){ strength[c]=0; });
-    var pairMap = [
-      ["EURUSD",1,"EUR",-1,"USD"],["GBPUSD",1,"GBP",-1,"USD"],["USDJPY",-1,"JPY",1,"USD"],
-      ["USDCHF",-1,"CHF",1,"USD"],["AUDUSD",1,"AUD",-1,"USD"],["USDCAD",-1,"CAD",1,"USD"],
-      ["EURGBP",1,"EUR",-1,"GBP"],["GBPJPY",1,"GBP",-1,"JPY"],["EURJPY",1,"EUR",-1,"JPY"],
-      ["CADJPY",1,"CAD",-1,"JPY"],["EURCAD",1,"EUR",-1,"CAD"],["GBPCHF",1,"GBP",-1,"CHF"],
-    ];
-    pairMap.forEach(function(pm){ if(fx[pm[0]]){ strength[pm[2]]+=pm[1]; strength[pm[4]]+=pm[3]; } });
-    var vals = Object.values(strength);
-    var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals), range=mx-mn||1;
-    var normStr = {}; curs.forEach(function(c){ normStr[c]=Math.round(((strength[c]-mn)/range)*100); });
-    var riskScore=0;
-    if(gold && gold.rate>2000) riskScore++;
-    if(fx.USDJPY && fx.USDJPY.rate>150) riskScore++;
-    if(normStr.USD>60) riskScore++;
-    if(normStr.CHF>60) riskScore++;
-    var riskLabel = riskScore>=3?"Risk-Off":riskScore<=1?"Risk-On":"Neutral";
-    var euBias = normStr.EUR>normStr.USD?"Long":"Short";
-    var gbBias = normStr.GBP>normStr.USD?"Long":"Short";
-    return { fx:fx, gold:gold, news:news, strength:normStr, riskLabel:riskLabel, riskScore:riskScore, euBias:euBias, gbBias:gbBias };
-  }
-
-  function fetchMacroData() {
-    var FOUR_HOURS = 4*60*60*1000;
-
-    // 1. Check localStorage first
-    try {
-      var lsc = localStorage.getItem("nv_macro_cache");
-      if (lsc) {
-        var lsp = JSON.parse(lsc);
-        if (lsp && lsp.ts && (Date.now()-lsp.ts) < FOUR_HOURS) {
-          setMacroData(lsp.data);
-          setMacroTs(new Date(lsp.ts).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})+" (cached)");
-          return;
-        }
-      }
-    } catch(e) {}
-
-    setMacroLoading(true); setMacroError("");
-
-    (async function() {
-      try {
-        // 2. Check Worker cache
-        try {
-          var wr = await fetch(WORKER_URL);
-          var wj = await wr.json();
-          if (wj && wj.ts && !wj.stale && (Date.now()-wj.ts) < FOUR_HOURS) {
-            var result = processRawData(wj.fx||{}, wj.gold||null, wj.news||[]);
-            setMacroData(result);
-            var wts = new Date(wj.ts).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
-            setMacroTs(wts+" (cached)");
-            try { localStorage.setItem("nv_macro_cache", JSON.stringify({ts:wj.ts, data:result})); } catch(e) {}
-            setMacroLoading(false);
-            return;
-          }
-        } catch(e) {}
-
-        // 3. Fetch fresh from AV in browser — staggered 300ms apart
-        var AV = "https://www.alphavantage.co/query";
-        var sleep = function(ms){ return new Promise(function(r){setTimeout(r,ms);}); };
-        var fetchPair = async function(from, to, delayMs) {
-          await sleep(delayMs);
-          try {
-            var r = await fetch(AV+"?function=CURRENCY_EXCHANGE_RATE&from_currency="+from+"&to_currency="+to+"&apikey="+AV_KEY);
-            var d = await r.json();
-            var info = d["Realtime Currency Exchange Rate"];
-            if (info) return { sym:from+to, rate:parseFloat(info["5. Exchange Rate"]), time:info["6. Last Refreshed"] };
-          } catch(e) {}
-          return null;
-        };
-
-        var results = await Promise.all([
-          fetchPair("EUR","USD",0),
-          fetchPair("GBP","USD",700),
-          fetchPair("USD","JPY",1400),
-          fetchPair("USD","CHF",2100),
-          fetchPair("AUD","USD",2800),
-          fetchPair("USD","CAD",3500),
-          fetchPair("XAU","USD",4200),
-        ]);
-
-        var fx = {};
-        var gold = null;
-        results.forEach(function(r){
-          if(!r) return;
-          if(r.sym==="XAUUSD") gold={rate:r.rate};
-          else fx[r.sym]={rate:r.rate, time:r.time};
-        });
-
-        // Crosses
-        if(fx.EURUSD&&fx.GBPUSD) fx.EURGBP={rate:+(fx.EURUSD.rate/fx.GBPUSD.rate).toFixed(5),derived:true};
-        if(fx.GBPUSD&&fx.USDJPY) fx.GBPJPY={rate:+(fx.GBPUSD.rate*fx.USDJPY.rate).toFixed(3),derived:true};
-        if(fx.EURUSD&&fx.USDJPY) fx.EURJPY={rate:+(fx.EURUSD.rate*fx.USDJPY.rate).toFixed(3),derived:true};
-        if(fx.USDCAD&&fx.USDJPY) fx.CADJPY={rate:+(fx.USDJPY.rate/fx.USDCAD.rate).toFixed(3),derived:true};
-        if(fx.EURUSD&&fx.USDCAD) fx.EURCAD={rate:+(fx.EURUSD.rate*fx.USDCAD.rate).toFixed(5),derived:true};
-        if(fx.GBPUSD&&fx.USDCHF) fx.GBPCHF={rate:+(fx.GBPUSD.rate*fx.USDCHF.rate).toFixed(5),derived:true};
-        if(fx.AUDUSD) fx.NZDUSD={rate:+(fx.AUDUSD.rate*0.922).toFixed(5),derived:true};
-
-        // News — after pairs
-        var news = [];
-        try {
-          await sleep(5000);
-          var nr = await fetch(AV+"?function=NEWS_SENTIMENT&tickers=FOREX:USD,FOREX:EUR,FOREX:GBP&limit=10&apikey="+AV_KEY);
-          var nd = await nr.json();
-          if(nd.feed) news=nd.feed.slice(0,8).map(function(n){
-            var score=parseFloat(n.overall_sentiment_score||0);
-            var label=score>0.15?"Bullish":score<-0.15?"Bearish":"Neutral";
-            var tickers=(n.ticker_sentiment||[]).map(function(t){return t.ticker;}).join(" ");
-            var cur=tickers.includes("FOREX:GBP")?"GBP":tickers.includes("FOREX:EUR")?"EUR":"USD";
-            return {title:n.title,source:n.source,score:score,label:label,cur:cur};
-          });
-        } catch(e) {}
-
-        var now = Date.now();
-        var rawData = { fx:fx, gold:gold, news:news, ts:now };
-        var processed = processRawData(fx, gold, news);
-
-        setMacroData(processed);
-        setMacroTs(new Date(now).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})+" Dublin");
-
-        // Save to localStorage
-        try { localStorage.setItem("nv_macro_cache", JSON.stringify({ts:now, data:processed})); } catch(e) {}
-
-        // Save to Worker cache (fire and forget)
-        try { fetch(WORKER_URL, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(rawData)}); } catch(e) {}
-
-      } catch(e) { setMacroError("Could not load macro data: "+e.message); }
-      setMacroLoading(false);
-    })();
-  }
-
   // Document-level paste for Log Trade tab — stable ref so it never re-registers mid-upload
   var updTfRef = React.useRef(null);
+  React.useEffect(function() {
+    var onKey = function(e){
+      if(!lightboxImg) return;
+      if(e.key==="Escape"){ setLightboxImg(null); return; }
+      var list = lightboxImg.list || [];
+      var idx = lightboxImg.idx || 0;
+      if(e.key==="ArrowRight" && idx < list.length-1){
+        var next = list[idx+1];
+        setLightboxImg({src:next.chart_image, idx:idx+1, list:list});
+      }
+      if(e.key==="ArrowLeft" && idx > 0){
+        var prev = list[idx-1];
+        setLightboxImg({src:prev.chart_image, idx:idx-1, list:list});
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return function(){ window.removeEventListener("keydown", onKey); };
+  }, [lightboxImg]);
   useEffect(function () {
     updTfRef.current = updTf;
   }, [tf]);
@@ -4636,7 +4494,7 @@ function NVJournal() {
     reader.onload = function (e) {
       var lines = e.target.result.split("\n").filter(Boolean);
       if (lines.length < 2) {
-        alert("Empty CSV");
+        showToast("Empty CSV — no trades found", "error");
         return;
       }
       var headers = lines[0].split(",").map(function (h) {
@@ -4687,7 +4545,7 @@ function NVJournal() {
         deduped.forEach(function (r) {
           return sbSave("trades", r);
         });
-        alert("Imported ".concat(deduped.length, " trades successfully!").concat(skipped > 0 ? " ".concat(skipped, " duplicate(s) skipped.") : ""));
+        showToast("Imported " + deduped.length + " trade" + (deduped.length !== 1 ? "s" : "") + (skipped > 0 ? " · " + skipped + " duplicate" + (skipped !== 1 ? "s" : "") + " skipped" : ""));
       }
     };
     reader.readAsText(file);
@@ -4698,14 +4556,14 @@ function NVJournal() {
     });
     var effectiveTaken = hasC5 ? false : tf.trade_taken;
     if (effectiveTaken && tf.r_result === "") {
-      alert("Enter R Result");
+      showToast("Enter R Result before saving", "error");
       return;
     }
     var gr = calcGrade(_objectSpread(_objectSpread({}, tf), {}, {
       trade_taken: effectiveTaken
     }));
     if (effectiveTaken && gr.blocked) {
-      alert("Cannot save: " + gr.blocked);
+      showToast("Cannot save: " + gr.blocked, "error");
       return;
     }
     var autoReason = !effectiveTaken && hasC5 && !tf.no_trade_reason ? "Non-Executable C5+" : tf.no_trade_reason;
@@ -4725,13 +4583,27 @@ function NVJournal() {
   }
   function saveDay() {
     var rec = _objectSpread(_objectSpread({}, df), {}, {
-      id: Date.now()
+      id: Date.now(),
+      bias_am: df.bias,
+      notes_am: df.notes || ""
     });
     setDays(function (p) {
       return [].concat(_toConsumableArray(p), [rec]);
     });
     setDf(INIT_DAY());
     sbSave("days", rec);
+  }
+  function flipBias(d, newBias) {
+    var ln = new Date(now.toLocaleString("en-US", { timeZone: tzIANA }));
+    var flipTime = ln.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    var updated = _objectSpread({}, d, {
+      bias: newBias,
+      bias_am: d.bias_am || d.bias,
+      bias_pm: newBias,
+      flip_time: flipTime
+    });
+    setDays(function (p) { return p.map(function (x) { return x.id === d.id ? updated : x; }); });
+    sbSave("days", updated);
   }
   function deleteSelected() {
     if (!selected.size) return;
@@ -4791,7 +4663,7 @@ function NVJournal() {
     });
   }
   var CSS = React.useMemo(function () {
-    return "\n    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}\n    body{background:".concat(C.bg, ";color:").concat(C.text, ";font-family:'Inter',sans-serif;min-height:100vh;overflow-anchor:none;}\n    ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:").concat(C.bg, ";}::-webkit-scrollbar-thumb{background:").concat(C.border, ";border-radius:2px;}\n    input,select,textarea{background:").concat(isDark ? "#0d0d0d" : "#fff", ";color:").concat(C.text, ";border:1px solid ").concat(isDark ? "#333" : C.border, ";border-radius:5px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;width:100%;outline:none;transition:border-color .15s;}\n    input:focus,select:focus,textarea:focus{border-color:").concat(C.accentDim, ";box-shadow:0 0 0 2px ").concat(C.accentGlow, ";}\n    select option{background:").concat(isDark ? "#111" : "#fff", ";}\n    textarea{resize:vertical;}button{cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}\n    input[type=checkbox]{width:14px;height:14px;accent-color:").concat(C.accent, ";cursor:pointer;}\n    .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:").concat(C.textDim, ";font-weight:600;display:block;margin-bottom:4px;}\n    @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}\n    .fade{animation:fadeUp .18s ease forwards;}\n  ");
+    return "\n    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}\n    body{background:".concat(C.bg, ";color:").concat(C.text, ";font-family:'Inter',sans-serif;min-height:100vh;overflow-anchor:none;scrollbar-width:thin;}\n    ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:").concat(C.bg, ";}::-webkit-scrollbar-thumb{background:").concat(C.border, ";border-radius:2px;}\n    input,select,textarea{background:").concat(isDark ? "#0d0d0d" : "#fff", ";color:").concat(C.text, ";border:1px solid ").concat(isDark ? "#333" : C.border, ";border-radius:5px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;width:100%;outline:none;transition:border-color .15s;}\n    input:focus,select:focus,textarea:focus{border-color:").concat(C.accentDim, ";box-shadow:0 0 0 2px ").concat(C.accentGlow, ";}\n    select option{background:").concat(isDark ? "#111" : "#fff", ";}\n    textarea{resize:vertical;}button{cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}\n    input[type=checkbox]{width:14px;height:14px;accent-color:").concat(C.accent, ";cursor:pointer;}\n    .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:").concat(C.textDim, ";font-weight:600;display:block;margin-bottom:6px;}\n    .card-hover{transition:box-shadow .15s,border-color .15s;}.card-hover:hover{box-shadow:0 0 0 1px ").concat(C.accentDim, " !important;border-color:").concat(C.accentDim, " !important;}\n    @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}\n    @keyframes tabIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}\n    .fade{animation:fadeUp .18s ease forwards;}\n    .tab-panel{animation:tabIn .18s ease forwards;}\n    .nav-tab:hover{background:rgba(128,128,128,0.1)!important}\n    @keyframes shimmer{0%{opacity:.6}50%{opacity:1}100%{opacity:.6}}\n    .skel{animation:shimmer 1.5s infinite}\n    .tab-panel>*{animation:tabIn .3s both}\n    .tab-panel>*:nth-child(1){animation-delay:0ms}.tab-panel>*:nth-child(2){animation-delay:40ms}.tab-panel>*:nth-child(3){animation-delay:80ms}.tab-panel>*:nth-child(4){animation-delay:120ms}.tab-panel>*:nth-child(5){animation-delay:160ms}.tab-panel>*:nth-child(6){animation-delay:200ms}.tab-panel>*:nth-child(7){animation-delay:240ms}.tab-panel>*:nth-child(8){animation-delay:280ms}.tab-panel>*:nth-child(9){animation-delay:320ms}.tab-panel>*:nth-child(10){animation-delay:360ms}\n    .stat-val{transition:transform .2s,color .2s;display:inline-block}\n  ");
   }, [isDark]);
 
   // ── Shared UI (stable primitives now via ThemeCtx, defined outside) ──
@@ -4870,7 +4742,7 @@ function NVJournal() {
         }
       })), /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 18,
           color: col
         }
@@ -4881,291 +4753,6 @@ function NVJournal() {
         }
       }, total > 0 ? "".concat(correct, "/").concat(total) : ""));
     })));
-  };
-  var DayRow = function DayRow(_ref37) {
-    var d = _ref37.d,
-      onConfirm = _ref37.onConfirm,
-      onSave = _ref37.onSave,
-      onDelete = _ref37.onDelete;
-    var _useState81 = useState(false),
-      _useState82 = _slicedToArray(_useState81, 2),
-      editing = _useState82[0],
-      setEditing = _useState82[1];
-    var _useState83 = useState(d),
-      _useState84 = _slicedToArray(_useState83, 2),
-      ed = _useState84[0],
-      setEd = _useState84[1];
-    useEffect(function () {
-      setEd(d);
-      setEditing(false);
-    }, [d.id]);
-    var isPending = !d.outcome || d.outcome === "";
-    var bc = d.outcome === "Correct" ? C.green : d.outcome === "Wrong" ? C.red : d.outcome === "Trash Day" ? C.textDim : C.yellow;
-    var saveEd = function saveEd() {
-      onSave(_objectSpread({}, ed));
-      setEditing(false);
-    };
-    return /*#__PURE__*/React.createElement("div", {
-      style: {
-        padding: "9px 12px",
-        background: C.surface,
-        borderRadius: 8,
-        border: "1px solid ".concat(isPending ? C.yellow : editing ? C.accent : C.border),
-        fontSize: 11,
-        fontFamily: "'JetBrains Mono',monospace",
-        boxShadow: C.shadow
-      }
-    }, !editing ? /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "grid",
-        gridTemplateColumns: "100px 90px 1fr 1fr 60px",
-        gap: 8,
-        alignItems: "center"
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.textMid
-      }
-    }, d.date), /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: d.bias === "Bullish" ? C.green : d.bias === "Bearish" ? C.red : C.textMid,
-        fontWeight: 600
-      }
-    }, d.bias), isPending ? /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        gridColumn: "3/5"
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 10,
-        color: C.yellow
-      }
-    }, "\u23F3 Awaiting confirmation"), /*#__PURE__*/React.createElement("select", {
-      defaultValue: "",
-      onChange: function onChange(e) {
-        if (!e.target.value) return;
-        onConfirm(d.id, e.target.value);
-      },
-      style: {
-        fontSize: 10,
-        padding: "2px 6px",
-        background: isDark ? "#0d0d0d" : "#fff",
-        color: C.text,
-        border: "1px solid ".concat(C.yellow),
-        borderRadius: 4
-      }
-    }, /*#__PURE__*/React.createElement("option", {
-      value: ""
-    }, "Confirm..."), BIAS_OUT.map(function (b) {
-      return /*#__PURE__*/React.createElement("option", {
-        key: b
-      }, b);
-    }))) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: bc,
-        fontWeight: 600
-      }
-    }, d.outcome), /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.textDim,
-        overflow: "hidden",
-        whiteSpace: "nowrap",
-        textOverflow: "ellipsis"
-      }
-    }, d.notes)), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 4,
-        justifyContent: "flex-end"
-      }
-    }, /*#__PURE__*/React.createElement("button", {
-      type: "button",
-      onClick: function onClick() {
-        setEd(d);
-        setEditing(true);
-      },
-      style: {
-        background: "transparent",
-        border: "1px solid ".concat(C.border),
-        color: C.textDim,
-        borderRadius: 4,
-        padding: "2px 7px",
-        fontSize: 9,
-        cursor: "pointer"
-      }
-    }, "\u270F"), /*#__PURE__*/React.createElement("button", {
-      type: "button",
-      onClick: function onClick() {
-        return onDelete(d.id);
-      },
-      style: {
-        background: "transparent",
-        border: "1px solid ".concat(C.border),
-        color: C.textDim,
-        borderRadius: 4,
-        padding: "2px 6px",
-        fontSize: 9,
-        cursor: "pointer"
-      }
-    }, "\u2715"))) : /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        flexDirection: "column",
-        gap: 8
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr 1fr",
-        gap: 8
-      }
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 9,
-        color: C.textDim,
-        marginBottom: 3
-      }
-    }, "DATE"), /*#__PURE__*/React.createElement("input", {
-      type: "date",
-      value: ed.date,
-      onChange: function onChange(e) {
-        return setEd(function (p) {
-          return _objectSpread(_objectSpread({}, p), {}, {
-            date: e.target.value
-          });
-        });
-      },
-      style: {
-        width: "100%",
-        background: C.inputBg,
-        border: "1px solid ".concat(C.border),
-        borderRadius: 4,
-        padding: "4px 6px",
-        color: C.text,
-        fontSize: 11,
-        boxSizing: "border-box"
-      }
-    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 9,
-        color: C.textDim,
-        marginBottom: 3
-      }
-    }, "BIAS"), /*#__PURE__*/React.createElement("select", {
-      value: ed.bias,
-      onChange: function onChange(e) {
-        return setEd(function (p) {
-          return _objectSpread(_objectSpread({}, p), {}, {
-            bias: e.target.value
-          });
-        });
-      },
-      style: {
-        width: "100%",
-        background: C.inputBg,
-        border: "1px solid ".concat(C.border),
-        borderRadius: 4,
-        padding: "4px 6px",
-        color: C.text,
-        fontSize: 11,
-        boxSizing: "border-box"
-      }
-    }, BIAS_OPTS.map(function (b) {
-      return /*#__PURE__*/React.createElement("option", {
-        key: b
-      }, b);
-    }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 9,
-        color: C.textDim,
-        marginBottom: 3
-      }
-    }, "OUTCOME"), /*#__PURE__*/React.createElement("select", {
-      value: ed.outcome || "",
-      onChange: function onChange(e) {
-        return setEd(function (p) {
-          return _objectSpread(_objectSpread({}, p), {}, {
-            outcome: e.target.value
-          });
-        });
-      },
-      style: {
-        width: "100%",
-        background: C.inputBg,
-        border: "1px solid ".concat(C.border),
-        borderRadius: 4,
-        padding: "4px 6px",
-        color: C.text,
-        fontSize: 11,
-        boxSizing: "border-box"
-      }
-    }, /*#__PURE__*/React.createElement("option", {
-      value: ""
-    }, "Pending"), BIAS_OUT.map(function (b) {
-      return /*#__PURE__*/React.createElement("option", {
-        key: b
-      }, b);
-    })))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 9,
-        color: C.textDim,
-        marginBottom: 3
-      }
-    }, "NOTES"), /*#__PURE__*/React.createElement("input", {
-      value: ed.notes || "",
-      onChange: function onChange(e) {
-        return setEd(function (p) {
-          return _objectSpread(_objectSpread({}, p), {}, {
-            notes: e.target.value
-          });
-        });
-      },
-      style: {
-        width: "100%",
-        background: C.inputBg,
-        border: "1px solid ".concat(C.border),
-        borderRadius: 4,
-        padding: "4px 6px",
-        color: C.text,
-        fontSize: 11,
-        boxSizing: "border-box"
-      }
-    })), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 8
-      }
-    }, /*#__PURE__*/React.createElement("button", {
-      type: "button",
-      onClick: saveEd,
-      style: {
-        padding: "4px 14px",
-        background: C.accent,
-        border: "none",
-        color: isDark ? "#000" : "#fff",
-        borderRadius: 5,
-        fontSize: 11,
-        fontWeight: 700,
-        cursor: "pointer"
-      }
-    }, "\u2713 Save"), /*#__PURE__*/React.createElement("button", {
-      type: "button",
-      onClick: function onClick() {
-        return setEditing(false);
-      },
-      style: {
-        padding: "4px 14px",
-        background: "transparent",
-        border: "1px solid ".concat(C.border),
-        color: C.textMid,
-        borderRadius: 5,
-        fontSize: 11,
-        cursor: "pointer"
-      }
-    }, "Cancel"))));
   };
   var Toggle2 = function Toggle2(_ref38) {
     var val = _ref38.val,
@@ -5216,7 +4803,8 @@ function NVJournal() {
         type: "button",
         key: p,
         onClick: function onClick() {
-          return setPeriod(p);
+          setPeriod(p);
+          setSelectedGalleryId(null);
         },
         style: {
           padding: "4px 12px",
@@ -5247,20 +4835,21 @@ function NVJournal() {
         alignItems: "center",
         justifyContent: "center"
       }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.textDim,
-        fontSize: 12
-      }
-    }, "No executed trades yet"));
+    }, /*#__PURE__*/React.createElement("div", {
+      style: { textAlign: "center" }
+    }, /*#__PURE__*/React.createElement("svg", { width: 36, height: 36, viewBox: "0 0 24 24", fill: "none", style: { margin: "0 auto 8px", display: "block", opacity: 0.25 } },
+      /*#__PURE__*/React.createElement("polyline", { points: "3,17 8,12 13,15 21,7", stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round" }),
+      /*#__PURE__*/React.createElement("line", { x1: 3, y1: 20, x2: 21, y2: 20, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" })
+    ), /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: C.textDim, fontWeight: 600 } }, "No executed trades yet"),
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: C.textDim, marginTop: 3, opacity: 0.7 } }, "Log your first trade to see the equity curve")));
     var cum = 0;
     var pts = sorted.map(function (t) {
       cum += parseFloat(t.r_result || 0);
       return +cum.toFixed(2);
     });
     var W = 600,
-      H = 90,
-      p = 8;
+      H = 160,
+      p = 10;
     var mn = Math.min.apply(Math, [0].concat(_toConsumableArray(pts))),
       mx = Math.max.apply(Math, [0].concat(_toConsumableArray(pts))),
       rng = mx - mn || 1;
@@ -5295,7 +4884,7 @@ function NVJournal() {
     }, "Equity Curve"), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 11,
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         color: lc,
         fontWeight: 600
       }
@@ -5303,7 +4892,7 @@ function NVJournal() {
       viewBox: "0 0 ".concat(W, " ").concat(H),
       style: {
         width: "100%",
-        height: 90,
+        height: 160,
         marginTop: 4
       }
     }, /*#__PURE__*/React.createElement("line", {
@@ -5314,7 +4903,13 @@ function NVJournal() {
       stroke: C.border,
       strokeWidth: 1,
       strokeDasharray: "4 3"
-    }), /*#__PURE__*/React.createElement("path", {
+    }), /*#__PURE__*/React.createElement("text", {
+      x: p + 2, y: p + 8, fontSize: "8", fill: C.textDim, fontFamily: "JetBrains Mono,monospace", opacity: 0.7
+    }, mx > 0 ? "+".concat(mx.toFixed(1)) : mx.toFixed(1), "R"),
+    mn < 0 && /*#__PURE__*/React.createElement("text", {
+      x: p + 2, y: H - p - 2, fontSize: "8", fill: C.textDim, fontFamily: "JetBrains Mono,monospace", opacity: 0.7
+    }, mn.toFixed(1), "R"),
+    /*#__PURE__*/React.createElement("path", {
       d: fill,
       fill: last >= 0 ? "rgba(61,214,140,0.06)" : "rgba(240,100,100,0.06)"
     }), /*#__PURE__*/React.createElement("path", {
@@ -5329,7 +4924,7 @@ function NVJournal() {
       cy: y(last),
       r: 3.5,
       fill: lc
-    }), uniqueMarkers.map(function (i) {
+    }, /*#__PURE__*/React.createElement("title", null, (sorted[sorted.length - 1] ? sorted[sorted.length - 1].date : "") + " | " + (last >= 0 ? "+" : "") + last.toFixed(2) + "R")), uniqueMarkers.map(function (i) {
       return /*#__PURE__*/React.createElement("g", {
         key: i
       }, /*#__PURE__*/React.createElement("line", {
@@ -5357,13 +4952,13 @@ function NVJournal() {
       style: {
         fontSize: 9,
         color: C.textDim,
-        fontFamily: "'JetBrains Mono',monospace"
+        fontFamily: F_MONO
       }
     }, (_sorted$ = sorted[0]) === null || _sorted$ === void 0 ? void 0 : _sorted$.date), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 9,
         color: C.textDim,
-        fontFamily: "'JetBrains Mono',monospace"
+        fontFamily: F_MONO
       }
     }, (_sorted = sorted[sorted.length - 1]) === null || _sorted === void 0 ? void 0 : _sorted.date)));
   };
@@ -5391,7 +4986,7 @@ function NVJournal() {
       }
     }, "Max Drawdown"), /*#__PURE__*/React.createElement("span", {
       style: {
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 22,
         color: C.red
       }
@@ -5408,7 +5003,7 @@ function NVJournal() {
       }
     }, "Current Streak"), /*#__PURE__*/React.createElement("span", {
       style: {
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 22,
         color: m.curStreakType === "W" ? C.green : m.curStreakType === "L" ? C.red : C.textDim
       }
@@ -5426,7 +5021,7 @@ function NVJournal() {
     }, "Best Win Streak"), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 13,
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         color: C.green
       }
     }, m.maxWinStreak)), /*#__PURE__*/React.createElement("div", {
@@ -5443,7 +5038,7 @@ function NVJournal() {
     }, "Worst Loss Streak"), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 13,
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         color: C.red
       }
     }, m.maxLossStreak)), /*#__PURE__*/React.createElement("div", {
@@ -5460,7 +5055,7 @@ function NVJournal() {
     }, "Avg RR"), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 13,
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         color: C.accent
       }
     }, m.avgLoss > 0 ? "".concat((m.avgWin / m.avgLoss).toFixed(2), ":1") : "—"))));
@@ -5517,7 +5112,7 @@ function NVJournal() {
         }
       }, /*#__PURE__*/React.createElement("span", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 24,
           color: col
         }
@@ -5599,18 +5194,18 @@ function NVJournal() {
         style: {
           fontSize: 10,
           color: C.textMid,
-          fontFamily: "'JetBrains Mono',monospace"
+          fontFamily: F_MONO
         }
       }, total, "T"), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 10,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: C.accent
         }
       }, winRate, "%"), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 10,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: totalR >= 0 ? C.green : C.red
         }
       }, totalR > 0 ? "+" : "", totalR, "R"))), /*#__PURE__*/React.createElement("div", {
@@ -5628,6 +5223,51 @@ function NVJournal() {
         }
       })));
     })));
+  };
+  var SessionStatsPanel = function SessionStatsPanel(_ref43b) {
+    var data = _ref43b.data,
+      _ref43b$isLive = _ref43b.isLive,
+      isLive = _ref43b$isLive === void 0 ? true : _ref43b$isLive;
+    var ex = isLive ? data.filter(function (t) { return t.trade_taken; }) : data;
+    var cols = SESSIONS.map(function (s) {
+      var m = calcMetrics(ex.filter(function (t) { return t.session === s; }), isLive);
+      return { s: s, m: m };
+    });
+    return /*#__PURE__*/React.createElement(Card, null,
+      /*#__PURE__*/React.createElement("span", { className: "lbl" }, "Session Breakdown"),
+      /*#__PURE__*/React.createElement("div", {
+        style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginTop: 10 }
+      }, cols.map(function (_ref43c) {
+        var s = _ref43c.s, m = _ref43c.m;
+        var rCol = m.totalR > 0 ? C.green : m.totalR < 0 ? C.red : C.textDim;
+        return /*#__PURE__*/React.createElement("div", {
+          key: s,
+          style: {
+            background: isDark ? "#000" : C.surfaceHigh,
+            borderRadius: 8, padding: "10px 12px",
+            border: "1px solid ".concat(C.border)
+          }
+        },
+          /*#__PURE__*/React.createElement("div", {
+            style: { fontFamily: F_DISPLAY, fontSize: 15, color: C.textMid, letterSpacing: ".1em", marginBottom: 8 }
+          }, SL(s)),
+          [
+            ["Trades", m.total, C.accent],
+            ["Win %", m.total ? m.winRate + "%" : "—", m.winRate >= 50 ? C.green : m.total ? C.red : C.textDim],
+            ["Total R", m.total ? (m.totalR > 0 ? "+" : "") + m.totalR + "R" : "—", rCol],
+            ["Exp", m.total ? m.expectancy + "R" : "—", m.expectancy > 0 ? C.green : m.expectancy < 0 ? C.red : C.textDim]
+          ].map(function (row) {
+            return /*#__PURE__*/React.createElement("div", {
+              key: row[0],
+              style: { display: "flex", justifyContent: "space-between", marginBottom: 3 }
+            },
+              /*#__PURE__*/React.createElement("span", { style: { fontSize: 9, color: C.textDim } }, row[0]),
+              /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, fontFamily: F_MONO, color: row[2] } }, row[1])
+            );
+          })
+        );
+      }))
+    );
   };
   var PairSessionMatrix = function PairSessionMatrix(_ref45) {
     var data = _ref45.data,
@@ -5648,7 +5288,7 @@ function NVJournal() {
         width: "100%",
         borderCollapse: "collapse",
         fontSize: 11,
-        fontFamily: "'JetBrains Mono',monospace"
+        fontFamily: F_MONO
       }
     }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
       style: {
@@ -5737,12 +5377,12 @@ function NVJournal() {
         }
       }, /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 26,
           color: gc,
           marginBottom: 4
         }
-      }, g), [["T", m.total, null], ["R", "".concat(m.totalR > 0 ? "+" : "").concat(m.totalR), m.totalR >= 0 ? C.green : C.red], ["W%", "".concat(m.winRate, "%"), C.accent], ["Exp", "".concat(m.expectancy, "R"), null]].map(function (_ref47) {
+      }, g), [["T", m.total, null], ["R", "".concat(m.totalR > 0 ? "+" : "").concat(m.totalR), m.totalR >= 0 ? C.green : C.red], ["Avg R", m.total ? (m.avgWin && m.wins ? "+" + (m.totalR / m.total).toFixed(2) : (m.totalR / m.total).toFixed(2)) + "R" : "—", m.total && m.totalR / m.total > 0 ? C.green : m.total && m.totalR / m.total < 0 ? C.red : C.textDim], ["W%", "".concat(m.winRate, "%"), C.accent], ["Exp", "".concat(m.expectancy, "R"), null]].map(function (_ref47) {
         var _ref48 = _slicedToArray(_ref47, 3),
           l = _ref48[0],
           v = _ref48[1],
@@ -5762,7 +5402,7 @@ function NVJournal() {
         }, l), /*#__PURE__*/React.createElement("span", {
           style: {
             fontSize: 10,
-            fontFamily: "'JetBrains Mono',monospace",
+            fontFamily: F_MONO,
             color: col || C.textMid
           }
         }, v));
@@ -5857,7 +5497,7 @@ function NVJournal() {
       }, l), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 10,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: C.textMid
         }
       }, v));
@@ -5912,7 +5552,7 @@ function NVJournal() {
       }, conf.label), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 10,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: C.textDim,
           width: 24,
           textAlign: "right"
@@ -5920,7 +5560,7 @@ function NVJournal() {
       }, w.length, "T"), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 11,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: enough ? barC : C.textDim,
           width: 38,
           textAlign: "right"
@@ -5928,7 +5568,7 @@ function NVJournal() {
       }, enough ? "".concat(mw.winRate, "%") : "—"), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 10,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: enough ? diff > 0 ? C.green : diff < 0 ? C.red : C.textDim : C.textDim,
           width: 36,
           textAlign: "right"
@@ -6021,7 +5661,7 @@ function NVJournal() {
           }
         }, /*#__PURE__*/React.createElement("div", {
           style: {
-            fontFamily: "'Bebas Neue',sans-serif",
+            fontFamily: F_DISPLAY,
             fontSize: 16,
             color: col
           }
@@ -6029,19 +5669,19 @@ function NVJournal() {
           style: {
             fontSize: 9,
             color: C.textDim,
-            fontFamily: "'JetBrains Mono',monospace"
+            fontFamily: F_MONO
           }
         }, m.total, "T"), enough ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
           style: {
             fontSize: 10,
             color: m.winRate >= 50 ? C.green : C.red,
-            fontFamily: "'JetBrains Mono',monospace"
+            fontFamily: F_MONO
           }
         }, m.winRate, "%"), /*#__PURE__*/React.createElement("div", {
           style: {
             fontSize: 9,
             color: m.totalR >= 0 ? C.green : C.red,
-            fontFamily: "'JetBrains Mono',monospace"
+            fontFamily: F_MONO
           }
         }, m.totalR > 0 ? "+" : "", m.totalR, "R")) : /*#__PURE__*/React.createElement("div", {
           style: {
@@ -6080,7 +5720,7 @@ function NVJournal() {
       style: {
         fontSize: 9,
         color: C.textDim,
-        fontFamily: "'JetBrains Mono',monospace"
+        fontFamily: F_MONO
       }
     }, "Mar 2026+")), /*#__PURE__*/React.createElement("div", {
       style: {
@@ -6115,19 +5755,19 @@ function NVJournal() {
         style: {
           fontSize: 10,
           color: C.textDim,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           marginBottom: 4
         }
       }, m.total, "T"), enough ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 22,
           color: m.winRate >= 50 ? C.green : C.red
         }
       }, m.winRate, "%"), /*#__PURE__*/React.createElement("div", {
         style: {
           fontSize: 10,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: m.totalR >= 0 ? C.green : C.red
         }
       }, m.totalR > 0 ? "+" : "", m.totalR, "R"), /*#__PURE__*/React.createElement("div", {
@@ -6194,7 +5834,7 @@ function NVJournal() {
         style: {
           fontSize: 9,
           color: phaseColors[phase],
-          fontFamily: "'JetBrains Mono',monospace"
+          fontFamily: F_MONO
         }
       }, phase, " ", count);
     }))));
@@ -6229,7 +5869,7 @@ function NVJournal() {
         }
       }, /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 13,
           color: C.accent,
           marginBottom: 6
@@ -6254,7 +5894,7 @@ function NVJournal() {
         }, l), /*#__PURE__*/React.createElement("span", {
           style: {
             fontSize: 10,
-            fontFamily: "'JetBrains Mono',monospace",
+            fontFamily: F_MONO,
             color: col || C.textMid
           }
         }, v));
@@ -6292,7 +5932,7 @@ function NVJournal() {
         }
       }, /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 22,
           color: col,
           marginBottom: 4
@@ -6317,7 +5957,7 @@ function NVJournal() {
         }, l), /*#__PURE__*/React.createElement("span", {
           style: {
             fontSize: 10,
-            fontFamily: "'JetBrains Mono',monospace",
+            fontFamily: F_MONO,
             color: c || C.textMid
           }
         }, v));
@@ -6377,7 +6017,7 @@ function NVJournal() {
         className: "lbl"
       }, label), /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 26,
           color: col,
           lineHeight: 1.1,
@@ -6387,7 +6027,7 @@ function NVJournal() {
         style: {
           fontSize: 10,
           color: C.textDim,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           marginTop: 2
         }
       }, t, " trade", t !== 1 ? "s" : ""));
@@ -6454,7 +6094,7 @@ function NVJournal() {
       }
     }, "Execution Rate"), /*#__PURE__*/React.createElement("div", {
       style: {
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 32,
         color: execCol
       }
@@ -6506,7 +6146,7 @@ function NVJournal() {
         }
       }, l), /*#__PURE__*/React.createElement("span", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 18,
           color: col
         }
@@ -6567,7 +6207,7 @@ function NVJournal() {
         }
       }, l), /*#__PURE__*/React.createElement("span", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 20,
           color: col
         }
@@ -6776,7 +6416,7 @@ function NVJournal() {
         padding: "4px 12px",
         color: C.text,
         fontSize: 11,
-        fontFamily: "'JetBrains Mono',monospace"
+        fontFamily: F_MONO
       }
     }, /*#__PURE__*/React.createElement("option", {
       value: getWeekKey(today())
@@ -6821,7 +6461,7 @@ function NVJournal() {
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 42,
         color: takenM.totalR > 0 ? C.green : takenM.totalR < 0 ? C.red : C.textMid,
         lineHeight: 1,
@@ -6872,7 +6512,7 @@ function NVJournal() {
       }
     }, "System Utilisation"), /*#__PURE__*/React.createElement("span", {
       style: {
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 28,
         color: gc
       }
@@ -6938,7 +6578,7 @@ function NVJournal() {
         }
       }, /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 24,
           color: col
         }
@@ -6982,7 +6622,7 @@ function NVJournal() {
         key: g
       }, /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 32,
           color: color,
           marginBottom: 8
@@ -7009,7 +6649,7 @@ function NVJournal() {
         }, l), /*#__PURE__*/React.createElement("span", {
           style: {
             fontSize: 11,
-            fontFamily: "'JetBrains Mono',monospace",
+            fontFamily: F_MONO,
             color: col
           }
         }, v));
@@ -7034,7 +6674,7 @@ function NVJournal() {
         className: "lbl"
       }, l), /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 26,
           color: col,
           marginTop: 2
@@ -7077,7 +6717,7 @@ function NVJournal() {
       }, t, "T"), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 11,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: r > 0 ? C.green : r < 0 ? C.red : C.textDim
         }
       }, r > 0 ? "+" : "", r, "R"), /*#__PURE__*/React.createElement("span", {
@@ -7110,7 +6750,7 @@ function NVJournal() {
       }, l), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 12,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: col
         }
       }, v));
@@ -7144,7 +6784,7 @@ function NVJournal() {
       }, l), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 12,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: col
         }
       }, v));
@@ -7277,7 +6917,7 @@ function NVJournal() {
           borderRadius: 7,
           border: "1px solid ".concat(t.trade_taken ? r > 0 ? C.green + "44" : r < 0 ? C.red + "44" : C.border : C.border),
           fontSize: 11,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           alignItems: "center",
           cursor: "pointer"
         }
@@ -7300,7 +6940,7 @@ function NVJournal() {
       }, t.direction), /*#__PURE__*/React.createElement("span", {
         style: {
           color: tgc,
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 14
         }
       }, tGrade), /*#__PURE__*/React.createElement("span", {
@@ -7347,7 +6987,7 @@ function NVJournal() {
         borderRadius: 7,
         border: "1px solid ".concat(isSel ? C.accent : isRuleBreak ? C.red : C.border),
         fontSize: 11,
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         alignItems: "center",
         boxShadow: C.shadow,
         cursor: "pointer"
@@ -7409,7 +7049,13 @@ function NVJournal() {
       style: {
         color: t.trade_taken ? r > 0 ? C.green : r < 0 ? C.red : C.textDim : C.textDim
       }
-    }, t.trade_taken ? "".concat(r > 0 ? "+" : "").concat(r, "R") : "—"), /*#__PURE__*/React.createElement("span", {
+    }, t.trade_taken ? "".concat(r > 0 ? "+" : "").concat(r, "R") : (function() {
+      var hr = t.hypo_result !== "" && t.hypo_result !== undefined ? parseFloat(t.hypo_result) : null;
+      if (hr === null) return "—";
+      return /*#__PURE__*/React.createElement("span", {
+        style: { color: hr > 0 ? C.green : hr < 0 ? C.red : C.textDim, opacity: 0.55 }
+      }, "(", hr > 0 ? "+" : "", hr, "R)");
+    })()), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 9,
         color: C.textDim,
@@ -7475,7 +7121,7 @@ function NVJournal() {
       C: C,
       isDark: isDark
     }
-  }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("style", null, CSS), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("style", null, CSS), /*#__PURE__*/React.createElement(ToastBar, { toast: toast }), /*#__PURE__*/React.createElement("div", {
     style: {
       minHeight: "100vh",
       background: C.bg
@@ -7508,7 +7154,7 @@ function NVJournal() {
     }
   }), /*#__PURE__*/React.createElement("span", {
     style: {
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: 13,
       color: C.textMid,
       letterSpacing: ".18em"
@@ -7522,19 +7168,20 @@ function NVJournal() {
     return /*#__PURE__*/React.createElement("button", {
       type: "button",
       key: t,
+      className: "nav-tab",
       onClick: function onClick() {
         return switchTab(t);
       },
       style: {
         padding: "5px 14px",
-        border: "none",
-        borderRadius: 5,
+        border: tab === t ? "1px solid ".concat(C.border) : "1px solid transparent",
+        borderRadius: 6,
         fontSize: 11,
         letterSpacing: ".06em",
-        fontWeight: 500,
-        background: tab === t ? C.accentGlow : "transparent",
+        fontWeight: tab === t ? 600 : 500,
+        background: tab === t ? C.surfaceHigh : "transparent",
         color: tab === t ? C.accent : C.textMid,
-        borderBottom: tab === t ? "1.5px solid ".concat(C.accent) : "1.5px solid transparent"
+        boxShadow: tab === t ? (isDark ? "0 1px 3px rgba(0,0,0,0.4)" : "0 1px 3px rgba(0,0,0,0.1)") : "none"
       }
     }, t);
   })), /*#__PURE__*/React.createElement("div", {
@@ -7547,26 +7194,23 @@ function NVJournal() {
     style: {
       fontSize: 10,
       color: C.textDim,
-      fontFamily: "'JetBrains Mono',monospace"
+      fontFamily: F_MONO
     }
   }, today(), " ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: C.accent
     }
-  }, clockStr)), syncing && /*#__PURE__*/React.createElement("span", {
+  }, clockStr)), /*#__PURE__*/React.createElement("span", {
+    title: syncing ? "Syncing\u2026" : pendingSync ? "Unsynced trades queued" : syncError ? "Supabase unreachable" : "Synced",
     style: {
-      fontSize: 9,
-      color: C.textDim
+      display: "inline-block",
+      width: 7,
+      height: 7,
+      borderRadius: "50%",
+      background: syncing ? C.yellow : pendingSync ? C.yellow : syncError ? C.red : C.green,
+      flexShrink: 0
     }
-  }, "\u27F3"), syncError && /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 9,
-      color: C.red,
-      padding: "2px 7px",
-      border: "1px solid ".concat(C.red),
-      borderRadius: 4
-    }
-  }, "\u26A0 offline"), /*#__PURE__*/React.createElement("button", {
+  }), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: function onClick() {
       return setIsDark(function (d) {
@@ -7647,7 +7291,7 @@ function NVJournal() {
       borderRadius: 6,
       color: C.text,
       fontSize: 11,
-      fontFamily: "'JetBrains Mono',monospace",
+      fontFamily: F_MONO,
       cursor: "pointer",
       outline: "none"
     }
@@ -7691,23 +7335,11 @@ function NVJournal() {
       borderRadius: 6,
       color: dst ? C.yellow : C.textDim,
       fontSize: 11,
-      fontFamily: "'JetBrains Mono',monospace",
+      fontFamily: F_MONO,
       cursor: "pointer",
       fontWeight: dst ? 700 : 400
     }
   }, dst ? "ON ✓" : "OFF")), /*#__PURE__*/React.createElement("div", {
-    style: { display:"flex", alignItems:"center", gap:8 }
-  }, /*#__PURE__*/React.createElement("span", { style:{ fontSize:11, color:C.textMid } }, "Alpha Vantage Key"),
-  /*#__PURE__*/React.createElement("input", {
-    type:"text", value:avKey,
-    onChange: function(e){ setAvKey(e.target.value); },
-    placeholder:"Paste free API key...",
-    style:{ padding:"4px 10px", background:C.inputBg, border:"1px solid ".concat(C.border), borderRadius:6, color:C.text, fontSize:11, fontFamily:"'JetBrains Mono',monospace", width:220 }
-  }),
-  /*#__PURE__*/React.createElement("a", {
-    href:"https://www.alphavantage.co/support/#api-key", target:"_blank", rel:"noopener noreferrer",
-    style:{ fontSize:10, color:C.blue, textDecoration:"none" }
-  }, "Get free key \u2197")), /*#__PURE__*/React.createElement("div", {
     style: {
       marginLeft: "auto",
       display: "flex",
@@ -7733,10 +7365,258 @@ function NVJournal() {
       color: C.red,
       fontSize: 11
     }
-  }, "\uD83D\uDDD1 Clear All Data"))), (tab === "Dashboard" || tab === "Trades") && /*#__PURE__*/React.createElement("div", {
+  }, "\uD83D\uDDD1 Clear All Data"))), /*#__PURE__*/React.createElement(React.Fragment, null,
+    (function() {
+      var tzM = dst && TZ_DST_MAP[tz] || TZ_MAP[tz];
+      var cuts = (tzM && tzM.autoH) || [11, 15, 19];
+      var sessionStarts = ["7AM", "11AM", "3PM"];
+      var nowLocal = new Date(now.toLocaleString("en-US", {timeZone: tzIANA}));
+      var dow = nowLocal.getDay(); // 0=Sun, 6=Sat
+      var isWeekend = dow === 0 || dow === 6;
+      var nowH = nowLocal.getHours();
+      var nowMin = nowLocal.getMinutes();
+      var todayStr = today();
+
+      // ── Today's bias ──
+      var todayDay = days.find(function(d){ return d.date === todayStr; });
+      var bias = todayDay ? todayDay.bias : null;
+      var biasText = bias && bias !== "Neutral" ? bias : bias === "Neutral" ? "Neutral" : null;
+
+      // ── Today's executed trades + running R ──
+      var todayTrades = trades.filter(function(t){ return t.date === todayStr && t.trade_taken; });
+      var todayR = +todayTrades.reduce(function(s,t){ return s + parseFloat(t.r_result||0); }, 0).toFixed(2);
+      var todayRStr = (todayR > 0 ? "+" : "") + todayR + "R";
+      var todayRCol = todayR > 0 ? C.green : todayR < 0 ? C.red : C.textMid;
+
+      // ── Yesterday recap ──
+      var yLocal = new Date(nowLocal); yLocal.setDate(yLocal.getDate()-1);
+      var yStr = yLocal.toISOString().slice(0,10);
+      var yTrades = trades.filter(function(t){ return t.date === yStr && t.trade_taken; });
+      var yR = +yTrades.reduce(function(s,t){ return s + parseFloat(t.r_result||0); }, 0).toFixed(2);
+
+      // ── This week stats (for weekend PREP MODE) ──
+      var weekR = 0, weekTrades = 0, weekBiasCorrect = 0, weekBiasTotal = 0;
+      if (isWeekend) {
+        var wKey = getWeekKey(todayStr);
+        var wTrades = trades.filter(function(t){ return getWeekKey(t.date) === wKey && t.trade_taken; });
+        weekR = +wTrades.reduce(function(s,t){ return s + parseFloat(t.r_result||0); }, 0).toFixed(2);
+        weekTrades = wTrades.length;
+        var wDays = days.filter(function(d){ return getWeekKey(d.date) === wKey && d.outcome && d.outcome !== "Trash Day"; });
+        weekBiasTotal = wDays.length;
+        weekBiasCorrect = wDays.filter(function(d){ return d.outcome === "Correct"; }).length;
+      }
+
+      // ── Days until Monday ──
+      var daysToMon = dow === 0 ? 1 : 2; // Sun=1, Sat=2
+
+      // ── Mode detection (weekday only) ──
+      var liveIdx = -1, preIdx = -1, nextIdx = -1;
+      if (!isWeekend) {
+        for (var i = 0; i < cuts.length; i++) {
+          if (nowH === cuts[i]) { liveIdx = i; break; }
+          if (nowH === cuts[i] - 1 && nowMin >= 30) { preIdx = i; break; }
+        }
+        for (var j = 0; j < cuts.length; j++) {
+          if ((nowH < cuts[j]) || (nowH === cuts[j] - 1 && nowMin < 30)) { nextIdx = j; break; }
+        }
+      }
+      var isAfterAll = !isWeekend && nowH >= cuts[cuts.length - 1];
+      var mode = isWeekend ? "weekend"
+        : liveIdx >= 0 ? "live"
+        : preIdx >= 0 ? "pre"
+        : isAfterAll ? "eod"
+        : "between";
+
+      var activeSessionIdx = liveIdx >= 0 ? liveIdx : preIdx >= 0 ? preIdx : -1;
+      var sessLabel = activeSessionIdx >= 0 ? SL(sessionStarts[activeSessionIdx]) : "";
+      var nextLabel = nextIdx >= 0 ? SL(sessionStarts[nextIdx]) : "";
+
+      // ── Minutes to next session ──
+      var minsToNext = -1;
+      if (nextIdx >= 0) {
+        minsToNext = (cuts[nextIdx] - nowH) * 60 - nowMin;
+        if (minsToNext < 0) minsToNext = 0;
+      }
+
+      // ── Weekend: muted green/yellow tones ──
+      // Weekday: full saturation. Weekend: same hue family, heavily muted.
+      var weekendPositive = weekR >= 0;
+
+      var accentCol = syncError ? C.red
+        : mode === "weekend" ? (isDark ? (weekendPositive ? "rgba(61,214,140,0.45)" : "rgba(240,100,100,0.45)") : (weekendPositive ? "#5a9e72" : "#b05050"))
+        : mode === "live" ? (biasText ? C.green : C.yellow)
+        : mode === "pre" ? C.yellow
+        : mode === "eod" ? (todayR >= 0 ? C.green : C.red)
+        : C.textMid;
+
+      var barBg = isDark
+        ? (mode === "weekend" ? (weekendPositive ? "rgba(10,22,14,0.97)" : "rgba(22,10,10,0.97)")
+          : syncError ? "rgba(30,8,8,0.98)"
+          : mode === "live" && biasText ? "rgba(8,20,10,0.98)"
+          : mode === "live" ? "rgba(26,18,0,0.98)"
+          : mode === "pre" ? "rgba(26,18,0,0.92)"
+          : mode === "eod" && todayR < 0 ? "rgba(30,8,8,0.82)"
+          : "rgba(20,20,20,0.95)")
+        : (mode === "weekend" ? (weekendPositive ? "rgba(232,244,236,0.97)" : "rgba(248,232,232,0.97)")
+          : syncError ? "rgba(255,240,240,0.98)"
+          : mode === "live" && biasText ? "rgba(236,248,240,0.98)"
+          : mode === "live" ? "rgba(255,250,235,0.98)"
+          : mode === "pre" ? "rgba(255,250,235,0.92)"
+          : mode === "eod" && todayR < 0 ? "rgba(255,240,240,0.82)"
+          : "rgba(245,245,245,0.97)");
+
+      var borderCol = isDark
+        ? (mode === "weekend" ? (weekendPositive ? "#0e2418" : "#2a0e0e")
+          : syncError ? "#3a1010"
+          : mode === "live" && biasText ? "#0e3018"
+          : mode === "live" || mode === "pre" ? "#3a2800"
+          : mode === "eod" && todayR < 0 ? "#3a1010"
+          : "#2a2a2a")
+        : (mode === "weekend" ? (weekendPositive ? "#b8d8c4" : "#d8b8b8")
+          : syncError ? "#f5c0c0"
+          : mode === "live" && biasText ? "#a8ddb8"
+          : mode === "live" || mode === "pre" ? "#f0d888"
+          : mode === "eod" && todayR < 0 ? "#f5c0c0"
+          : "#e0e0e0");
+
+      var lbl = { fontSize:9, opacity:0.55, letterSpacing:".12em", textTransform:"uppercase", fontFamily:"'Inter',sans-serif", color:accentCol };
+      var val = { fontSize:10, fontWeight:600, fontFamily:"'Inter',sans-serif", color:accentCol };
+      var mono = { fontSize:10, fontFamily:F_MONO, color:accentCol, opacity:0.75 };
+      var sep = React.createElement("div", { style:{ width:1, height:14, background:borderCol, flexShrink:0 } });
+
+      // ── Left chunk ──
+      var leftChunk = (function(){
+        if (mode === "weekend") {
+          return React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:6 } },
+            React.createElement("span", { style:{ fontSize:10, lineHeight:1, opacity:0.7 } }, "\uD83D\uDCCB"),
+            React.createElement("span", { style: Object.assign({}, val, { letterSpacing:".1em" }) }, "PREP MODE"),
+            React.createElement("span", { style: mono }, "\xB7 Mon in " + daysToMon + "d")
+          );
+        }
+        if (mode === "live") {
+          return React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:6 } },
+            React.createElement("div", { style:{ width:6, height:6, borderRadius:"50%", background:accentCol, flexShrink:0,
+              boxShadow: "0 0 0 2px " + (isDark ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.6)") } }),
+            React.createElement("span", { style: Object.assign({}, val, { letterSpacing:".1em" }) }, sessLabel.toUpperCase(), " LIVE"),
+            React.createElement("span", { style: mono }, "\xB7 ", (59 - nowMin), "m remaining")
+          );
+        }
+        if (mode === "pre") {
+          return React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:6 } },
+            React.createElement("span", { style:{ fontSize:12, lineHeight:1 } }, "\u26A1"),
+            React.createElement("span", { style: Object.assign({}, val, { letterSpacing:".08em" }) }, sessLabel.toUpperCase(), " IN ", minsToNext, "m")
+          );
+        }
+        if (mode === "eod") {
+          return React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:6 } },
+            React.createElement("span", { style:{ fontSize:11, lineHeight:1 } }, todayR >= 0 ? "\u2713" : "\u25BC"),
+            React.createElement("span", { style: Object.assign({}, val, { letterSpacing:".08em" }) }, "DAY DONE")
+          );
+        }
+        return React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:6 } },
+          React.createElement("span", { style: Object.assign({}, lbl, { opacity:0.7 }) }, "NEXT"),
+          React.createElement("span", { style: val }, nextLabel ? nextLabel.toUpperCase() + " IN " + minsToNext + "m" : "NO MORE SESSIONS")
+        );
+      })();
+
+      // ── Weekend: week R + bias accuracy chunks instead of bias/today ──
+      var weekRChunk = mode === "weekend"
+        ? React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:5 } },
+            React.createElement("span", { style: lbl }, "WEEK"),
+            React.createElement("span", { style:{ fontSize:11, fontFamily:F_DISPLAY,
+              color: weekR > 0 ? C.green : weekR < 0 ? C.red : C.textMid, lineHeight:1 } },
+              (weekR > 0 ? "+" : "") + weekR + "R"
+            ),
+            React.createElement("span", { style: Object.assign({}, mono, { fontSize:9 }) }, weekTrades + "T")
+          )
+        : null;
+
+      var weekBiasChunk = (mode === "weekend" && weekBiasTotal >= 1)
+        ? React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:5 } },
+            React.createElement("span", { style: lbl }, "BIAS ACC"),
+            React.createElement("span", { style:{ fontSize:11, fontFamily:F_DISPLAY,
+              color: (weekBiasCorrect/weekBiasTotal) >= 0.6 ? C.green : (weekBiasCorrect/weekBiasTotal) >= 0.4 ? C.yellow : C.red,
+              lineHeight:1 } },
+              Math.round(weekBiasCorrect/weekBiasTotal*100) + "%"
+            ),
+            React.createElement("span", { style: Object.assign({}, mono, { fontSize:9 }) }, weekBiasCorrect + "/" + weekBiasTotal)
+          )
+        : null;
+
+      // ── Weekday: bias chunk ──
+      var biasChunk = mode !== "weekend"
+        ? React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:5 } },
+            React.createElement("span", { style: lbl }, "BIAS"),
+            biasText
+              ? React.createElement("span", { style: Object.assign({}, val, { color: biasText==="Bullish"?C.green:biasText==="Bearish"?C.red:C.textMid }) }, biasText)
+              : React.createElement("span", {
+                  onClick: function(){ switchTab("Days"); },
+                  style: Object.assign({}, val, { color:C.yellow, cursor:"pointer", textDecoration:"underline", textDecorationStyle:"dotted", fontWeight:400 })
+                }, "Not set \u2014 tap to set")
+          )
+        : null;
+
+      // ── Today R (weekday only) ──
+      var rChunk = (mode !== "weekend" && todayTrades.length > 0)
+        ? React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:5 } },
+            React.createElement("span", { style: lbl }, "TODAY"),
+            React.createElement("span", { style:{ fontSize:11, fontFamily:F_DISPLAY, color:todayRCol, lineHeight:1 } }, todayRStr),
+            React.createElement("span", { style: Object.assign({}, mono, { fontSize:9 }) }, todayTrades.length + "T")
+          )
+        : null;
+
+      // ── Yesterday (non-live weekday only) ──
+      var yChunk = (mode !== "weekend" && mode !== "live" && yTrades.length > 0)
+        ? React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:5 } },
+            React.createElement("span", { style: lbl }, "YDAY"),
+            React.createElement("span", { style:{ fontSize:11, fontFamily:F_DISPLAY,
+              color: yR > 0 ? C.green : yR < 0 ? C.red : C.textMid, lineHeight:1 } },
+              (yR > 0 ? "+" : "") + yR + "R"
+            )
+          )
+        : null;
+
+      // ── Sync dot (always) ──
+      var syncChunk = React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:4, marginLeft:"auto" } },
+        React.createElement("span", { style: lbl }, "SYNC"),
+        React.createElement("div", { style:{
+          width:5, height:5, borderRadius:"50%", flexShrink:0,
+          background: syncing ? C.yellow : syncError ? C.red : pendingSync ? C.yellow : C.green
+        }})
+      );
+
+      // ── Assemble ──
+      var chunks = [leftChunk, sep];
+      if (mode === "weekend") {
+        if (weekRChunk) { chunks.push(weekRChunk); }
+        if (weekBiasChunk) { chunks.push(sep, weekBiasChunk); }
+      } else {
+        if (biasChunk) { chunks.push(biasChunk); }
+        if (rChunk) { chunks.push(sep, rChunk); }
+        if (yChunk) { chunks.push(sep, yChunk); }
+      }
+      chunks.push(syncChunk);
+
+      if (tab !== "Dashboard") return null;
+      return React.createElement("div", {
+        style: {
+          position: "sticky",
+          top: 52,
+          zIndex: 145,
+          background: barBg,
+          borderBottom: "1px solid " + borderCol,
+          padding: "0 22px",
+          height: 30,
+          display: "flex",
+          alignItems: "center",
+          gap: 16
+        }
+      }, chunks);
+    })()
+  ), (tab === "Dashboard" || tab === "Trades") && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "sticky",
-      top: 52,
+      top: tab === "Dashboard" ? 82 : 52,
       zIndex: 140,
       background: C.surface,
       borderBottom: "1px solid ".concat(C.border),
@@ -7744,7 +7624,9 @@ function NVJournal() {
       display: "flex",
       alignItems: "center",
       gap: 10,
-      boxShadow: C.shadow
+      boxShadow: C.shadow,
+      backdropFilter: "blur(8px)",
+      WebkitBackdropFilter: "blur(8px)"
     }
   }, tab === "Dashboard" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
     style: {
@@ -7769,21 +7651,24 @@ function NVJournal() {
       fontWeight: 600,
       marginRight: 4
     }
-  }, "Trades"), /*#__PURE__*/React.createElement(Toggle2, {
+  }, "Trades"), /*#__PURE__*/React.createElement(Toggle3, {
     val: tradesView,
     a: "Live",
     b: "All",
+    c: "Gallery",
     onChange: function onChange(v) {
       setTradesView(v);
       setSelected(new Set());
+      if (v !== "Gallery") setSelectedGalleryId(null);
     }
-  }), /*#__PURE__*/React.createElement(Periods, null))), /*#__PURE__*/React.createElement("div", {
+  }), tradesView !== "Gallery" && /*#__PURE__*/React.createElement(Periods, null))), /*#__PURE__*/React.createElement("div", {
     style: {
       maxWidth: 1160,
       margin: "0 auto",
       padding: "18px 16px"
     }
   }, tab === "Dashboard" && /*#__PURE__*/React.createElement("div", {
+    className: "tab-panel",
     style: {
       display: "flex",
       flexDirection: "column",
@@ -7802,19 +7687,21 @@ function NVJournal() {
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "repeat(4,1fr)",
+      gridTemplateColumns: "2fr 1fr 1fr 1fr",
       gap: 10
     }
   }, /*#__PURE__*/React.createElement(Stat, {
+    label: "Total R",
+    value: "".concat(metrics.totalR > 0 ? "+" : "").concat(metrics.totalR, "R"),
+    color: metrics.totalR > 0 ? C.green : metrics.totalR < 0 ? C.red : C.text,
+    size: "xl",
+    hero: true,
+    heroColor: metrics.totalR > 0 ? C.green : metrics.totalR < 0 ? C.red : C.border
+  }), /*#__PURE__*/React.createElement(Stat, {
     label: "Total Trades",
     value: metrics.total,
     color: C.accent,
     size: "lg"
-  }), /*#__PURE__*/React.createElement(Stat, {
-    label: "Total R",
-    value: "".concat(metrics.totalR > 0 ? "+" : "").concat(metrics.totalR, "R"),
-    color: metrics.totalR > 0 ? C.green : metrics.totalR < 0 ? C.red : C.text,
-    size: "xl"
   }), /*#__PURE__*/React.createElement(Stat, {
     label: "Win Rate",
     value: "".concat(metrics.winRate, "%"),
@@ -7854,6 +7741,9 @@ function NVJournal() {
     size: "md"
   })), /*#__PURE__*/React.createElement(EquityCurve, {
     data: executedFiltered
+  }), /*#__PURE__*/React.createElement(SessionStatsPanel, {
+    data: dashFiltered,
+    isLive: dashView === "Live"
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
@@ -7863,20 +7753,20 @@ function NVJournal() {
   }, /*#__PURE__*/React.createElement(SessionPanel, {
     data: dashFiltered,
     isLive: dashView === "Live"
-  }), /*#__PURE__*/React.createElement(DrawdownPanel, {
-    m: metrics
-  })), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement(GradePanel, {
+    data: dashFiltered,
+    isLive: dashView === "Live"
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "1fr 1fr",
       gap: 10
     }
-  }, /*#__PURE__*/React.createElement(GradePanel, {
-    data: dashFiltered,
-    isLive: dashView === "Live"
-  }), /*#__PURE__*/React.createElement(BestWorstPanel, {
+  }, /*#__PURE__*/React.createElement(BestWorstPanel, {
     m: metrics,
     onClick: setDetailTrade
+  }), /*#__PURE__*/React.createElement(DrawdownPanel, {
+    m: metrics
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
@@ -7931,7 +7821,7 @@ function NVJournal() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: 36,
       color: C.yellow
     }
@@ -7954,7 +7844,7 @@ function NVJournal() {
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 36,
         color: C.accent
       }
@@ -7973,7 +7863,7 @@ function NVJournal() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: 36,
       color: C.red
     }
@@ -8012,7 +7902,7 @@ function NVJournal() {
       style: {
         color: C.yellow,
         fontWeight: 700,
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 15
       }
     }, n), " ", /*#__PURE__*/React.createElement("span", {
@@ -8021,12 +7911,13 @@ function NVJournal() {
       }
     }, SL(sess)));
   })))), tab === "Trades" && /*#__PURE__*/React.createElement("div", {
+    className: "tab-panel",
     style: {
       display: "flex",
       flexDirection: "column",
       gap: 10
     }
-  }, /*#__PURE__*/React.createElement(Sect, null, tradesView === "Live" ? "Trade Journal — Executed Trades" : "All Setups — Full Log"), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(Sect, null, tradesView === "Live" ? "Trade Journal — Executed Trades" : tradesView === "Gallery" ? "Trades Gallery" : "All Setups — Full Log"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 6,
@@ -8051,7 +7942,7 @@ function NVJournal() {
     }, l), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 15,
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         color: col
       }
     }, v));
@@ -8068,7 +7959,7 @@ function NVJournal() {
   }, "Missed A/A+"), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 15,
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       color: C.yellow
     }
   }, tradesFiltered.filter(function (t) {
@@ -8111,7 +8002,159 @@ function NVJournal() {
     onChange: function onChange(e) {
       return importCSV(e.target.files[0]);
     }
-  }))), tradesFiltered.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }))), tradesView === "Gallery" && /*#__PURE__*/React.createElement("div", {
+    style:{
+      background: isDark ? "rgba(10,13,17,0.98)" : "rgba(234,236,239,0.98)",
+      border: "1px solid ".concat(C.border),
+      borderRadius: 10,
+      marginBottom: 16,
+      overflow: "hidden"
+    }
+  },
+    /*#__PURE__*/React.createElement("div", {
+      style:{
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+        padding:"10px 14px",
+        borderBottom:"1px solid ".concat(C.border),
+        background: C.surfaceHigh
+      }
+    },
+      /*#__PURE__*/React.createElement("div", { style:{display:"flex",alignItems:"center",gap:10} },
+        /*#__PURE__*/React.createElement("span", {
+          style:{fontSize:9,letterSpacing:".18em",textTransform:"uppercase",color:C.textDim,fontWeight:700}
+        }, "Chart Gallery"),
+        /*#__PURE__*/React.createElement("span", {
+          style:{fontSize:9,color:C.textDim,opacity:0.6}
+        }, tradesFiltered.filter(function(t){return t.chart_image&&t.chart_image!=="";}).length, " screenshots")
+      ),
+      /*#__PURE__*/React.createElement("div", { style:{display:"flex",gap:4} },
+        ["Week","Month","YTD","All"].map(function(p){
+          var isAct = period===p;
+          return /*#__PURE__*/React.createElement("button",{
+            type:"button",key:p,onClick:function(){setPeriod(p);},
+            style:{
+              padding:"3px 10px",borderRadius:4,
+              border:"1px solid ".concat(isAct?C.accent:isDark?"rgba(255,255,255,0.18)":"rgba(0,0,0,0.18)"),
+              background:"transparent",
+              color:isAct?C.accent:C.textMid,
+              fontSize:10,fontWeight:isAct?600:400,cursor:"pointer",letterSpacing:".04em"
+            }
+          }, p);
+        })
+      )
+    ),
+    /*#__PURE__*/React.createElement("div", {
+      style:{padding:"8px 12px",background:C.surfaceHigh,
+        borderBottom:"1px solid ".concat(C.border)}
+    },
+      /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
+        /*#__PURE__*/React.createElement("input",{
+          value:tradeSearch,
+          onChange:function(e){setTradeSearch(e.target.value);},
+          placeholder:"Search date, pair, notes, key zone...",
+          style:{flex:1,background:C.inputBg,border:"1px solid "+(tradeSearch?C.accent:C.border),
+            borderRadius:5,padding:"4px 8px",color:C.text,fontSize:11,outline:"none",fontFamily:"'Inter',sans-serif"}
+        }),
+        (Object.values(tradeFilters).some(function(v){return v!=="All";})||tradeSearch) &&
+          /*#__PURE__*/React.createElement("button",{
+            type:"button",
+            onClick:function(){setTradeFilters({grade:"All",session:"All",direction:"All",pair:"All",outcome:"All"});setTradeSearch("");},
+            style:{padding:"3px 10px",background:"transparent",border:"1px solid "+C.red,borderRadius:4,
+              color:C.red,fontSize:10,cursor:"pointer",whiteSpace:"nowrap"}
+          }, "× Clear")
+      ),
+      (function(){
+        var FG = function(label,key,opts){
+          return /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginBottom:4,flexWrap:"wrap"}},
+            /*#__PURE__*/React.createElement("span",{style:{fontSize:8,color:C.textDim,letterSpacing:".1em",textTransform:"uppercase",minWidth:42}},label),
+            opts.map(function(o){
+              var lbl = key==="session"&&o!=="All"?SL(o):o;
+              var act = tradeFilters[key]===o;
+              return /*#__PURE__*/React.createElement("button",{
+                key:o,type:"button",
+                onClick:function(){setTradeFilters(function(p){return Object.assign({},p,_defineProperty({},key,o));});},
+                style:{padding:"2px 9px",borderRadius:4,border:"1px solid "+(act?C.accent:C.border),
+                  background:act?C.accentGlow:"transparent",color:act?C.accent:C.textDim,
+                  fontSize:10,cursor:"pointer",whiteSpace:"nowrap"}
+              },lbl);
+            })
+          );
+        };
+        return /*#__PURE__*/React.createElement(React.Fragment,null,
+          FG("Grade","grade",["All","A+","A","B"]),
+          FG("Session","session",["All","7AM","11AM","3PM"]),
+          /*#__PURE__*/React.createElement("div",{style:{display:"flex",gap:12,flexWrap:"wrap"}},
+            FG("Dir","direction",["All","Long","Short"]),
+            FG("Pair","pair",["All","EURUSD","GBPUSD"]),
+            FG("Result","outcome",["All","W","L","BE","NT"])
+          )
+        );
+      })()
+    ),
+    (function(){
+      var gt = tradesFiltered.filter(function(t){ return t.chart_image && t.chart_image !== ""; });
+      if(gt.length === 0) return /*#__PURE__*/React.createElement("div", {
+        style:{textAlign:"center",padding:"32px 0",color:C.textDim,fontSize:11,opacity:0.6}
+      }, "No chart screenshots in this period");
+      return /*#__PURE__*/React.createElement("div", {
+        style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10,padding:12}
+      },
+        gt.map(function(t, idx){
+          var gc = t.grade==="A+"?C.gradeAp:t.grade==="A"?C.gradeA:C.gradeB;
+          var rVal = parseFloat(t.r_result||0), rCol = rVal>0?C.green:rVal<0?C.red:C.textDim;
+          var isSel = selectedGalleryId===t.id;
+          return /*#__PURE__*/React.createElement("div", {
+            key:t.id,
+            onClick:function(){
+              setSelectedGalleryId(t.id);
+              setLightboxImg({ src: t.chart_image, idx: idx, list: gt });
+              var el = document.getElementById("trow-"+t.id);
+              if(el) el.scrollIntoView({behavior:"smooth",block:"nearest"});
+            },
+            style:{
+              background:C.surface,
+              border:"1px solid ".concat(isSel?C.accent:C.border),
+              borderRadius:8,overflow:"hidden",cursor:"pointer",
+              boxShadow:isSel?"0 0 0 2px ".concat(C.accent):"none",
+              transition:"border-color .12s,box-shadow .12s"
+            }
+          },
+            /*#__PURE__*/React.createElement("div", {
+              style:{height:100,position:"relative",background:C.surfaceHigh,overflow:"hidden"}
+            },
+              /*#__PURE__*/React.createElement("img", {
+                src:t.chart_image, alt:"chart",
+                style:{width:"100%",height:"100%",objectFit:"cover",display:"block"}
+              }),
+              /*#__PURE__*/React.createElement("div", {
+                style:{position:"absolute",top:4,left:4,fontFamily:F_DISPLAY,fontSize:11,fontWeight:700,
+                  color:t.grade==="A+"?(isDark?"#000":"#fff"):"#fff",
+                  background:gc,padding:"1px 5px",borderRadius:3,lineHeight:1.4}
+              }, t.grade),
+              /*#__PURE__*/React.createElement("div", {
+                style:{position:"absolute",top:4,right:4,width:6,height:6,borderRadius:"50%",
+                  background:t.outcome==="Win"?C.green:t.outcome==="Loss"?C.red:C.textDim}
+              })
+            ),
+            /*#__PURE__*/React.createElement("div", {style:{padding:"5px 8px"}},
+              /*#__PURE__*/React.createElement("div", {style:{display:"flex",justifyContent:"space-between",alignItems:"baseline"}},
+                /*#__PURE__*/React.createElement("span", {
+                  style:{fontFamily:F_DISPLAY,fontSize:14,color:rCol,lineHeight:1}
+                }, t.trade_taken?(rVal>0?"+":"")+rVal+"R":"NT"),
+                /*#__PURE__*/React.createElement("span", {style:{fontSize:8,color:C.textMid}}, t.pair)
+              ),
+              /*#__PURE__*/React.createElement("div", {style:{display:"flex",justifyContent:"space-between",marginTop:1}},
+                /*#__PURE__*/React.createElement("span", {
+                  style:{fontSize:8,color:t.outcome==="Win"?C.green:t.outcome==="Loss"?C.red:C.textDim}
+                }, t.trade_taken?(t.outcome||"\u2014"):"Skipped"),
+                /*#__PURE__*/React.createElement("span", {style:{fontSize:8,color:C.textDim}}, t.date)
+              )
+            )
+          );
+        })
+      );
+    })()
+  ), tradesFiltered.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -8370,18 +8413,19 @@ function NVJournal() {
   })), _toConsumableArray(tradesFiltered).sort(function (a, b) {
     return b.date.localeCompare(a.date);
   }).map(function (t) {
-    return /*#__PURE__*/React.createElement(TradeRow, {
-      key: t.id,
-      t: t
-    });
+    return /*#__PURE__*/React.createElement("div", {
+      key: t.id, id: "trow-"+t.id,
+      style:{outline:selectedGalleryId===t.id?"2px solid ".concat(C.accent):"none",borderRadius:8,transition:"outline .12s"}
+    }, /*#__PURE__*/React.createElement(TradeRow, { key: t.id, t: t }));
   }), tradesFiltered.length === 0 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center",
-      padding: 50,
-      color: C.textDim,
-      fontSize: 12
-    }
-  }, "No trades in this period")), tab === "Review" && /*#__PURE__*/React.createElement("div", {
+    style: { textAlign: "center", padding: "48px 20px" }
+  }, /*#__PURE__*/React.createElement("svg", { width: 40, height: 40, viewBox: "0 0 24 24", fill: "none", style: { margin: "0 auto 10px", display: "block", opacity: 0.22 } },
+    /*#__PURE__*/React.createElement("rect", { x: 3, y: 3, width: 18, height: 18, rx: 2, stroke: C.textDim, strokeWidth: 1.5 }),
+    /*#__PURE__*/React.createElement("line", { x1: 8, y1: 9, x2: 16, y2: 9, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
+    /*#__PURE__*/React.createElement("line", { x1: 8, y1: 13, x2: 14, y2: 13, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
+    /*#__PURE__*/React.createElement("line", { x1: 8, y1: 17, x2: 11, y2: 17, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" })
+  ), /*#__PURE__*/React.createElement(EmptyState, { icon: "\uD83D\uDCCB", title: "No trades in this period", hint: "Adjust the period filter or log a new setup" }))), tab === "Review" && /*#__PURE__*/React.createElement("div", {
+    className: "tab-panel",
     style: {
       display: "flex",
       flexDirection: "column",
@@ -8393,7 +8437,15 @@ function NVJournal() {
     }))).sort(function (a, b) {
       return b.localeCompare(a);
     });
-    if (!months.length) return null;
+    if (!months.length) return /*#__PURE__*/React.createElement("div", {
+      style: { textAlign: "center", padding: "48px 20px" }
+    }, /*#__PURE__*/React.createElement("svg", { width: 40, height: 40, viewBox: "0 0 24 24", fill: "none", style: { margin: "0 auto 10px", display: "block", opacity: 0.22 } },
+      /*#__PURE__*/React.createElement("rect", { x: 3, y: 3, width: 18, height: 18, rx: 2, stroke: C.textDim, strokeWidth: 1.5 }),
+      /*#__PURE__*/React.createElement("line", { x1: 9, y1: 9, x2: 15, y2: 9, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
+      /*#__PURE__*/React.createElement("line", { x1: 9, y1: 13, x2: 15, y2: 13, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
+      /*#__PURE__*/React.createElement("line", { x1: 9, y1: 17, x2: 12, y2: 17, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" })
+    ), /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: C.textDim, fontWeight: 600 } }, "No trades to review yet"),
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: C.textDim, marginTop: 4, opacity: 0.7 } }, "Log your first setup to see monthly performance"));
     return /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("span", {
       className: "lbl",
       style: {
@@ -8457,140 +8509,109 @@ function NVJournal() {
       }, /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: C.text,
           fontWeight: 600
         }
       }, mo), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: C.textMid
         }
       }, taken.length), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 16,
           color: rCol
         }
       }, m.totalR > 0 ? "+" : "", m.totalR, "R"), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: m.winRate >= 50 ? C.green : m.winRate > 0 ? C.red : C.textDim
         }
       }, taken.length ? "".concat(m.winRate, "%") : "—"), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: m.expectancy >= 0 ? C.green : C.red
         }
       }, taken.length ? "".concat(m.expectancy, "R") : "—"), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 14,
           color: C.gradeAp
         }
       }, aPlus), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 14,
           color: C.gradeA
         }
       }, aGrade), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 14,
           color: C.gradeB
         }
       }, bGrade), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: ruleBreaks === 0 ? C.green : C.red
         }
       }, ruleBreaks));
     })))));
   }(), /*#__PURE__*/React.createElement(WeeklyReview, null)), tab === "Days" && /*#__PURE__*/React.createElement("div", {
+    className: "tab-panel",
     style: {
       display: "flex",
       flexDirection: "column",
       gap: 12
     }
-  }, /*#__PURE__*/React.createElement(Sect, null, "Daily Bias Engine"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 12
-    }
-  }, /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: 12
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "lbl",
-    style: {
-      margin: 0
-    }
-  }, "Morning \u2014 Set Bias"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 9,
-      color: C.textDim
-    }
-  }, "Set before market open")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 10
-    }
-  }, /*#__PURE__*/React.createElement(Fld, {
-    label: "Date"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    value: df.date,
-    onChange: function onChange(e) {
-      return updDf("date", e.target.value);
-    }
-  })), /*#__PURE__*/React.createElement(Fld, {
-    label: "Bias Direction"
-  }, /*#__PURE__*/React.createElement("select", {
-    value: df.bias,
-    onChange: function onChange(e) {
-      return updDf("bias", e.target.value);
-    }
-  }, BIAS_OPTS.map(function (b) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: b
-    }, b);
-  }))), /*#__PURE__*/React.createElement(Fld, {
-    label: "Notes (optional)"
-  }, /*#__PURE__*/React.createElement("textarea", {
-    rows: 2,
-    value: df.notes,
-    onChange: function onChange(e) {
-      return updDf("notes", e.target.value);
-    }
-  })), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: saveDay,
-    style: {
-      padding: "8px 20px",
-      background: C.accent,
-      border: "none",
-      color: isDark ? "#000" : "#fff",
-      borderRadius: 6,
-      fontSize: 12,
-      fontWeight: 700,
-      alignSelf: "flex-start"
-    }
-  }, "SET MORNING BIAS"))), /*#__PURE__*/React.createElement(BiasEngine, null)), /*#__PURE__*/React.createElement(DowChart, {
+  }, /*#__PURE__*/React.createElement(Sect, null, "Daily Bias Engine"),
+  /*#__PURE__*/React.createElement(Card, null,
+    /*#__PURE__*/React.createElement("span", { className:"lbl", style:{ marginBottom:10 } }, "Morning \u2014 Set Bias"),
+    /*#__PURE__*/React.createElement("div", {
+      style:{ display:"grid", gridTemplateColumns:"120px 1fr 1fr 140px", gap:10, alignItems:"end" }
+    },
+      /*#__PURE__*/React.createElement("div", null,
+        /*#__PURE__*/React.createElement("span", { className:"lbl" }, "Date"),
+        /*#__PURE__*/React.createElement("input", { type:"date", value:df.date,
+          onChange: function onChange(e){ return updDf("date", e.target.value); }
+        })
+      ),
+      /*#__PURE__*/React.createElement("div", null,
+        /*#__PURE__*/React.createElement("span", { className:"lbl" }, "AM Bias"),
+        /*#__PURE__*/React.createElement("select", {
+          value: df.bias,
+          onChange: function onChange(e){ return updDf("bias", e.target.value); }
+        }, BIAS_OPTS.map(function(b){ return /*#__PURE__*/React.createElement("option", { key:b }, b); }))
+      ),
+      /*#__PURE__*/React.createElement("div", null,
+        /*#__PURE__*/React.createElement("span", { className:"lbl" }, "Notes (optional)"),
+        /*#__PURE__*/React.createElement("input", { type:"text", value:df.notes||"",
+          placeholder:"e.g. above PDH, watching 1.0850...",
+          onChange: function onChange(e){ return updDf("notes", e.target.value); }
+        })
+      ),
+      /*#__PURE__*/React.createElement("button", {
+        type:"button", onClick:saveDay,
+        style:{
+          padding:"8px 20px", background:C.accent, border:"none",
+          color:isDark?"#000":"#fff", borderRadius:6, fontSize:12, fontWeight:700,
+          cursor:"pointer", height:36, whiteSpace:"nowrap"
+        }
+      }, "SET BIAS")
+    )
+  ),
+  /*#__PURE__*/React.createElement(BiasEngine, null),
+  /*#__PURE__*/React.createElement(DowChart, {
     days: days,
     C: C
   }), /*#__PURE__*/React.createElement("div", {
@@ -8607,6 +8628,7 @@ function NVJournal() {
       d: d,
       C: C,
       isDark: isDark,
+      onFlip: function onFlip(day, newBias) { flipBias(day, newBias); },
       onConfirm: function onConfirm(id, outcome) {
         var updated = _objectSpread(_objectSpread({}, days.find(function (x) {
           return x.id === id;
@@ -8638,13 +8660,14 @@ function NVJournal() {
       }
     });
   }), days.length === 0 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center",
-      padding: 40,
-      color: C.textDim,
-      fontSize: 12
-    }
-  }, "No days logged yet"))), tab === "Log Trade" && /*#__PURE__*/React.createElement("div", {
+    style: { textAlign: "center", padding: "48px 20px" }
+  }, /*#__PURE__*/React.createElement("svg", { width: 40, height: 40, viewBox: "0 0 24 24", fill: "none", style: { margin: "0 auto 10px", display: "block", opacity: 0.22 } },
+    /*#__PURE__*/React.createElement("rect", { x: 3, y: 4, width: 18, height: 18, rx: 2, stroke: C.textDim, strokeWidth: 1.5 }),
+    /*#__PURE__*/React.createElement("line", { x1: 3, y1: 9, x2: 21, y2: 9, stroke: C.textDim, strokeWidth: 1.5 }),
+    /*#__PURE__*/React.createElement("line", { x1: 8, y1: 2, x2: 8, y2: 6, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
+    /*#__PURE__*/React.createElement("line", { x1: 16, y1: 2, x2: 16, y2: 6, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" })
+  ), /*#__PURE__*/React.createElement(EmptyState, { icon: "\uD83D\uDCC5", title: "No days logged yet", hint: "Log your daily bias to track accuracy over time" })))), tab === "Log Trade" && /*#__PURE__*/React.createElement("div", {
+    className: "tab-panel",
     style: {
       position: "relative",
       paddingRight: 314
@@ -8708,7 +8731,7 @@ function NVJournal() {
     return /*#__PURE__*/React.createElement("option", {
       key: d
     }, d);
-  }))))), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+  }))))), /*#__PURE__*/React.createElement(Card, { style: { borderLeft: "3px solid ".concat(C.accent), paddingLeft: 13 } }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -8939,10 +8962,10 @@ function NVJournal() {
   }, /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 11,
-      fontFamily: "'JetBrains Mono',monospace",
+      fontFamily: F_MONO,
       color: C.textDim
     }
-  }, gradeDisplay.score, "/", gradeDisplay.maxPts || 33, "pts"))), /*#__PURE__*/React.createElement("div", {
+  }, gradeDisplay.score, "/", gradeDisplay.maxPts || 35, "pts"))), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 9,
       letterSpacing: ".12em",
@@ -9018,7 +9041,7 @@ function NVJournal() {
         color: tf.smt_h4_pair === p ? C.accent : C.textDim,
         fontSize: 11,
         cursor: "pointer",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontWeight: tf.smt_h4_pair === p ? 700 : 400
       }
     }, p);
@@ -9066,7 +9089,7 @@ function NVJournal() {
         color: tf.smt_h1_pair === p ? C.accent : C.textDim,
         fontSize: 11,
         cursor: "pointer",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontWeight: tf.smt_h1_pair === p ? 700 : 400
       }
     }, p);
@@ -9255,7 +9278,14 @@ function NVJournal() {
   }, /*#__PURE__*/React.createElement("select", {
     value: tf.outcome,
     onChange: function onChange(e) {
-      return updTf("outcome", e.target.value);
+      return (function(v) {
+        updTf("outcome", v);
+        if (!tf.r_result || tf.r_result === "") {
+          if (v === "W") updTf("r_result", "2");
+          else if (v === "L") updTf("r_result", "-1");
+          else if (v === "BE") updTf("r_result", "0");
+        }
+      })(e.target.value);
     }
   }, OUTCOMES.map(function (o) {
     return /*#__PURE__*/React.createElement("option", {
@@ -9324,9 +9354,16 @@ function NVJournal() {
   }, /*#__PURE__*/React.createElement("select", {
     value: tf.hypo_outcome,
     onChange: function onChange(e) {
-      return updTf("hypo_outcome", e.target.value);
+      return (function(v) {
+        updTf("hypo_outcome", v);
+        if (!tf.hypo_result || tf.hypo_result === "") {
+          if (v === "W") updTf("hypo_result", "2");
+          else if (v === "L") updTf("hypo_result", "-1");
+          else if (v === "BE") updTf("hypo_result", "0");
+        }
+      })(e.target.value);
     }
-  }, OUTCOMES.map(function (o) {
+  }, ["W", "L", "BE"].map(function (o) {
     return /*#__PURE__*/React.createElement("option", {
       key: o
     }, o);
@@ -9603,12 +9640,13 @@ function NVJournal() {
       position: "absolute",
       top: 0,
       right: 0,
-      width: 300
+      width: 300,
+      height: "100%"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       position: "sticky",
-      top: 62
+      top: 58
     }
   }, /*#__PURE__*/React.createElement(GradeMeter, {
     gr: gradeDisplay,
@@ -9680,167 +9718,27 @@ function NVJournal() {
       color: C.textMid,
       lineHeight: 1.5
     }
-  }, "Tradeable but missing CISD H1 or Key Zone.")))))), tab === "Macro" && /*#__PURE__*/React.createElement("div", { style:{display:"flex",flexDirection:"column",gap:12} },
-    /*#__PURE__*/React.createElement("div", { style:{display:"flex",alignItems:"center",justifyContent:"space-between"} },
-      /*#__PURE__*/React.createElement("span", { style:{fontSize:15,fontWeight:600,color:C.text} }, "Macro Dashboard"),
-      /*#__PURE__*/React.createElement("div", { style:{display:"flex",alignItems:"center",gap:8} },
-        macroTs && /*#__PURE__*/React.createElement("span", { style:{fontSize:10,color:C.textDim} }, "Updated "+macroTs),
-        /*#__PURE__*/React.createElement("button", {
-          type:"button", onClick:fetchMacroData, disabled:macroLoading,
-          style:{padding:"5px 14px",background:C.accentGlow,border:"1px solid ".concat(C.border),borderRadius:6,color:C.accent,fontSize:11,cursor:macroLoading?"default":"pointer"}
-        }, macroLoading ? "\u29f3 Loading..." : "\u21bb Load Data")
-      )
-    ),
-    /*#__PURE__*/React.createElement("div", { style:{display:"flex",gap:6} },
-      [["fx","FX Majors"],["cross","FX Crosses"],["commodities","Commodities"],["futures","Futures"]].map(function(f){
-        return /*#__PURE__*/React.createElement("button", { key:f[0], type:"button", onClick:function(){ setMacroFilter(f[0]); },
-          style:{padding:"5px 14px",borderRadius:20,border:"1px solid ".concat(macroFilter===f[0]?C.accent:C.border),
-            background:macroFilter===f[0]?C.accent:"transparent",color:macroFilter===f[0]?(isDark?"#000":"#fff"):C.textMid,
-            fontSize:12,cursor:"pointer",fontWeight:macroFilter===f[0]?600:400}
-        }, f[1]);
-      })
-    ),
-    macroError && /*#__PURE__*/React.createElement("div", {
-      style:{padding:"10px 14px",background:isDark?"#1a0000":"#fff0f0",border:"1px solid ".concat(C.red),borderRadius:8,fontSize:11,color:C.red}
-    }, macroError),
-    !macroData && !macroLoading && /*#__PURE__*/React.createElement(Card, null,
-      /*#__PURE__*/React.createElement("div", { style:{textAlign:"center",padding:"40px 0",color:C.textDim,fontSize:12} },
-        "Click \u201cLoad Data\u201d to fetch live macro data"
-      )
-    ),
-    macroData && /*#__PURE__*/React.createElement(Card, null,
-      /*#__PURE__*/React.createElement("span", { className:"lbl" }, "Pair Bias \u2014 Your Instruments"),
-      /*#__PURE__*/React.createElement("div", { style:{display:"flex",flexDirection:"column",gap:8,marginTop:8} },
-        [["GBPUSD","GBP/USD",macroData.gbBias],["EURUSD","EUR/USD",macroData.euBias]].map(function(p){
-          var col = p[2]==="Long"?C.green:C.red;
-          var str = macroData.strength;
-          var base=p[0].slice(0,3), quote=p[0].slice(3);
-          return /*#__PURE__*/React.createElement("div", { key:p[0], style:{borderLeft:"3px solid ".concat(col),paddingLeft:12,paddingTop:6,paddingBottom:6,paddingRight:12,background:C.surfaceHigh,borderRadius:"0 8px 8px 0"} },
-            /*#__PURE__*/React.createElement("div", { style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4} },
-              /*#__PURE__*/React.createElement("span", { style:{fontWeight:600,fontSize:13} }, p[1]),
-              /*#__PURE__*/React.createElement("span", { style:{fontSize:11,padding:"2px 8px",borderRadius:4,background:col+"22",color:col,fontWeight:500} }, p[2]==="Long"?"\u2191 Long Bias":"\u2193 Short Bias")
-            ),
-            /*#__PURE__*/React.createElement("div", { style:{fontSize:11,color:C.textMid} },
-              base+" strength: "+str[base]+" \xb7 "+quote+" strength: "+str[quote]+" \xb7 "+(str[base]>str[quote]?"Macro favours "+base:"Macro favours "+quote)
-            )
-          );
-        })
-      )
-    ),
-    macroData && /*#__PURE__*/React.createElement("div", { style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12} },
-      /*#__PURE__*/React.createElement(CardElevated, null,
-        /*#__PURE__*/React.createElement("span", { className:"lbl" }, "Risk Sentiment"),
-        /*#__PURE__*/React.createElement("div", { style:{display:"flex",alignItems:"center",gap:12,marginTop:8,marginBottom:8} },
-          /*#__PURE__*/React.createElement("span", { style:{fontSize:22,fontWeight:600,color:macroData.riskLabel==="Risk-Off"?C.red:macroData.riskLabel==="Risk-On"?C.green:C.yellow} }, macroData.riskLabel),
-          /*#__PURE__*/React.createElement("span", { style:{fontSize:11,padding:"2px 8px",borderRadius:4,background:(macroData.riskLabel==="Risk-Off"?C.red:macroData.riskLabel==="Risk-On"?C.green:C.yellow)+"22",color:macroData.riskLabel==="Risk-Off"?C.red:macroData.riskLabel==="Risk-On"?C.green:C.yellow} }, macroData.riskScore+"/4 signals")
-        ),
-        /*#__PURE__*/React.createElement("div", { style:{height:6,borderRadius:3,background:"linear-gradient(to right,"+C.green+","+C.yellow+","+C.red+")",position:"relative",marginBottom:4} },
-          /*#__PURE__*/React.createElement("div", { style:{width:10,height:10,borderRadius:"50%",background:C.accent,border:"2px solid ".concat(C.surface),position:"absolute",top:-2,left:Math.min(90,Math.round((macroData.riskScore/4)*90))+"%",transform:"translateX(-50%)"} })
-        ),
-        /*#__PURE__*/React.createElement("div", { style:{display:"flex",justifyContent:"space-between",fontSize:9,color:C.textDim,marginBottom:10} },
-          /*#__PURE__*/React.createElement("span", null, "Risk-On"),
-          /*#__PURE__*/React.createElement("span", null, "Neutral"),
-          /*#__PURE__*/React.createElement("span", null, "Risk-Off")
-        ),
-        /*#__PURE__*/React.createElement("div", { style:{display:"flex",gap:6} },
-          [["Gold",macroData.gold?"$"+Math.round(macroData.gold.rate):"n/a",C.yellow],["JPY str",""+macroData.strength.JPY,macroData.strength.JPY<40?C.red:C.textMid],["USD str",""+macroData.strength.USD,macroData.strength.USD>60?C.green:C.textMid]].map(function(s){
-            return /*#__PURE__*/React.createElement("div", { key:s[0], style:{flex:1,background:C.surfaceHigh,borderRadius:6,padding:"6px 8px",textAlign:"center"} },
-              /*#__PURE__*/React.createElement("div", { style:{fontSize:9,color:C.textDim} }, s[0]),
-              /*#__PURE__*/React.createElement("div", { style:{fontSize:13,fontWeight:500,color:s[2],marginTop:2} }, s[1])
-            );
-          })
-        )
+  }, "Tradeable but missing CISD H1 or Key Zone.")))))),
+  tab === "Prop Firms" && /*#__PURE__*/React.createElement("div", {
+    className: "tab-panel",
+    style: { display:"flex", flexDirection:"column", gap:12 }
+  }, /*#__PURE__*/React.createElement(Sect, null, "Prop Firm Tracker"),
+  /*#__PURE__*/React.createElement(Card, null,
+    /*#__PURE__*/React.createElement("div", { style:{ textAlign:"center", padding:"48px 20px" } },
+      /*#__PURE__*/React.createElement("svg", { width:40, height:40, viewBox:"0 0 24 24", fill:"none", style:{ margin:"0 auto 12px", display:"block", opacity:0.22 } },
+        /*#__PURE__*/React.createElement("rect", { x:2, y:7, width:20, height:14, rx:2, stroke:C.textDim, strokeWidth:1.5 }),
+        /*#__PURE__*/React.createElement("path", { d:"M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2", stroke:C.textDim, strokeWidth:1.5, strokeLinecap:"round" }),
+        /*#__PURE__*/React.createElement("line", { x1:12, y1:12, x2:12, y2:16, stroke:C.textDim, strokeWidth:1.5, strokeLinecap:"round" }),
+        /*#__PURE__*/React.createElement("line", { x1:10, y1:14, x2:14, y2:14, stroke:C.textDim, strokeWidth:1.5, strokeLinecap:"round" })
       ),
-      /*#__PURE__*/React.createElement(Card, null,
-        /*#__PURE__*/React.createElement("span", { className:"lbl" }, "Currency Strength"),
-        /*#__PURE__*/React.createElement("div", { style:{display:"flex",flexDirection:"column",gap:4,marginTop:8} },
-          Object.entries(macroData.strength).sort(function(a,b){return b[1]-a[1];}).map(function(entry){
-            var cur=entry[0], val=entry[1];
-            var col=val>=60?C.green:val<=40?C.red:C.yellow;
-            var lbl=val>=60?"Bullish":val<=40?"Bearish":"Neutral";
-            return /*#__PURE__*/React.createElement("div", { key:cur, style:{display:"flex",alignItems:"center",gap:8} },
-              /*#__PURE__*/React.createElement("span", { style:{fontSize:12,fontWeight:500,minWidth:32} }, cur),
-              /*#__PURE__*/React.createElement("div", { style:{flex:1,height:4,background:C.surfaceHigh,borderRadius:2,overflow:"hidden"} },
-                /*#__PURE__*/React.createElement("div", { style:{height:"100%",width:val+"%",background:col,borderRadius:2} })
-              ),
-              /*#__PURE__*/React.createElement("span", { style:{fontSize:10,padding:"1px 6px",borderRadius:3,background:col+"22",color:col,minWidth:48,textAlign:"center"} }, lbl)
-            );
-          })
-        )
-      )
-    ),
-    macroData && /*#__PURE__*/React.createElement(Card, null,
-      /*#__PURE__*/React.createElement("div", { style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10} },
-        /*#__PURE__*/React.createElement("span", { className:"lbl",style:{margin:0} },
-          macroFilter==="fx"?"FX Majors":macroFilter==="cross"?"FX Crosses":macroFilter==="commodities"?"Commodities":"Indices & Futures"
-        )
-      ),
-      (function(){
-        var allRows={
-          fx:[["EUR/USD","EURUSD"],["GBP/USD","GBPUSD"],["USD/JPY","USDJPY"],["USD/CHF","USDCHF"],["AUD/USD","AUDUSD"],["USD/CAD","USDCAD"],["NZD/USD","NZDUSD"]],
-          cross:[["EUR/GBP","EURGBP"],["GBP/JPY","GBPJPY"],["EUR/JPY","EURJPY"],["CAD/JPY","CADJPY"],["EUR/CAD","EURCAD"],["GBP/CHF","GBPCHF"]],
-          commodities:[["Gold XAU/USD","XAU"],["Oil / DXY","—"]],
-          futures:[["S&P 500","—"],["Nasdaq 100","—"],["VIX","—"]],
-        };
-        var current=allRows[macroFilter]||[];
-        return current.map(function(row){
-          var label=row[0], sym=row[1];
-          var data=macroData.fx[sym];
-          var rate=data?data.rate:(sym==="XAU"&&macroData.gold?macroData.gold.rate:null);
-          var base=sym&&sym.length===6?sym.slice(0,3):null, quote=sym&&sym.length===6?sym.slice(3):null;
-          var strB=base?macroData.strength[base]:null, strQ=quote?macroData.strength[quote]:null;
-          var biasLabel=strB!=null&&strQ!=null?(strB>strQ?"Bullish":"Bearish"):rate?"—":"—";
-          var biasCol=biasLabel==="Bullish"?C.green:biasLabel==="Bearish"?C.red:C.textDim;
-          var isJPY=sym&&(sym.includes("JPY"));
-          var dp=isJPY?3:sym==="XAU"?2:5;
-          return /*#__PURE__*/React.createElement("div", { key:label, style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid ".concat(C.border),fontSize:12} },
-            /*#__PURE__*/React.createElement("span", { style:{fontWeight:500,minWidth:100} }, label),
-            /*#__PURE__*/React.createElement("span", { style:{color:C.textMid,fontFamily:"'JetBrains Mono',monospace",flex:1} }, rate?rate.toFixed(dp):"—"),
-            /*#__PURE__*/React.createElement("span", { style:{fontSize:10,padding:"2px 7px",borderRadius:4,background:biasCol+"22",color:biasCol} }, biasLabel)
-          );
-        });
-      })()
-    ),
-    macroData && macroData.news && macroData.news.length>0 && /*#__PURE__*/React.createElement(Card, null,
-      /*#__PURE__*/React.createElement("div", { style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10} },
-        /*#__PURE__*/React.createElement("span", { className:"lbl",style:{margin:0} }, "Macro News"),
-        /*#__PURE__*/React.createElement("div", { style:{display:"flex",gap:4} },
-          ["all","USD","GBP","EUR"].map(function(f){
-            return /*#__PURE__*/React.createElement("button", { key:f, type:"button", onClick:function(){ setMacroNewsFilter(f); },
-              style:{padding:"3px 8px",borderRadius:4,border:"1px solid ".concat(macroNewsFilter===f?C.accent:C.border),
-                background:macroNewsFilter===f?C.accentGlow:"transparent",color:macroNewsFilter===f?C.accent:C.textDim,fontSize:11,cursor:"pointer"}
-            }, f);
-          })
-        )
-      ),
-      macroData.news.filter(function(n){ return macroNewsFilter==="all"||n.cur===macroNewsFilter; }).map(function(n,i){
-        var col=n.label==="Bullish"?C.green:n.label==="Bearish"?C.red:C.textMid;
-        return /*#__PURE__*/React.createElement("div", { key:i, style:{padding:"7px 0",borderBottom:"1px solid ".concat(C.border)} },
-          /*#__PURE__*/React.createElement("div", { style:{fontSize:12,lineHeight:1.4,color:C.text} }, n.title),
-          /*#__PURE__*/React.createElement("div", { style:{display:"flex",alignItems:"center",gap:8,marginTop:4} },
-            /*#__PURE__*/React.createElement("span", { style:{fontSize:10,padding:"1px 6px",borderRadius:3,background:col+"22",color:col} }, n.cur+" "+n.label),
-            /*#__PURE__*/React.createElement("span", { style:{fontSize:10,color:C.textDim} }, n.source)
-          )
-        );
-      })
-    ),
-    /*#__PURE__*/React.createElement("div", { style:{borderRadius:8,overflow:"hidden",border:"1px solid ".concat(C.border)} },
-      /*#__PURE__*/React.createElement("div", { style:{padding:"10px 14px",background:C.surface,borderBottom:"1px solid ".concat(C.border),display:"flex",alignItems:"center",justifyContent:"space-between"} },
-        /*#__PURE__*/React.createElement("span", { style:{fontSize:11,fontWeight:500,color:C.text} }, "Economic Calendar"),
-        /*#__PURE__*/React.createElement("span", { style:{fontSize:10,color:C.textDim} }, "USD \xb7 EUR \xb7 GBP \xb7 High impact \xb7 via TradingView")
-      ),
-      /*#__PURE__*/React.createElement("iframe", {
-        src:"https://www.tradingview.com/embed-widget/events/?locale=en#%7B%22colorTheme%22%3A%22"+(isDark?"dark":"light")+"%22%2C%22isTransparent%22%3Afalse%2C%22width%22%3A%22100%25%22%2C%22height%22%3A%22300%22%2C%22importanceFilter%22%3A%220%2C1%22%2C%22countryFilter%22%3A%22us%2Ceu%2Cgb%22%7D",
-        style:{width:"100%",height:300,border:"none",display:"block"},
-        allowTransparency:true
-      })
-    ),
-    !macroData && !macroLoading && /*#__PURE__*/React.createElement(Card, null,
-      /*#__PURE__*/React.createElement("div", { style:{textAlign:"center",padding:"40px 0",color:C.textDim,fontSize:12} },
-        avKey.trim()?"Click \u201cLoad Data\u201d to fetch live macro data":"Add your Alpha Vantage key in Settings \u2699 first"
+      /*#__PURE__*/React.createElement("div", { style:{ fontSize:13, color:C.textDim, fontWeight:600 } }, "Prop Firm Tracker — Coming Soon"),
+      /*#__PURE__*/React.createElement("div", { style:{ fontSize:10, color:C.textDim, marginTop:6, opacity:0.7, lineHeight:1.6 } },
+        "Track Topstep, FundedNext and other evaluations.", React.createElement("br", null),
+        "Daily drawdown, max drawdown, profit targets, and phase progress."
       )
     )
-  ), tab === "Calculator" && /*#__PURE__*/React.createElement("div", {
+  )), tab === "Calculator" && /*#__PURE__*/React.createElement("div", {
+    className: "tab-panel",
     style: {
       display: "flex",
       flexDirection: "column",
@@ -9864,6 +9762,7 @@ function NVJournal() {
     C: C,
     isDark: isDark
   })), tab === "Crypto" && /*#__PURE__*/React.createElement("div", {
+    className: "tab-panel",
     style: {
       display: "flex",
       flexDirection: "column",
@@ -9894,16 +9793,74 @@ function NVJournal() {
     style: {
       fontSize: 10,
       color: C.textDim,
-      fontFamily: "'JetBrains Mono',monospace",
+      fontFamily: F_MONO,
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v53")), /*#__PURE__*/React.createElement("span", {
+  }, "NV JOURNAL - v61")), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 9,
+      color: C.textDim,
+      fontFamily: F_MONO,
+      letterSpacing: ".08em",
+      opacity: 0.6,
+      marginLeft: 8
+    }
+  }, "GRADE MODEL v1"), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
       color: C.textDim,
-      fontFamily: "'JetBrains Mono',monospace"
+      fontFamily: F_MONO
     }
-  }, "\xA9 ", new Date().getFullYear(), " Nerijus Velza. All rights reserved.")), detailTrade && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, "\xA9 ", new Date().getFullYear(), " Nerijus Velza. All rights reserved."), lightboxImg && /*#__PURE__*/React.createElement("div", {
+      onClick: function(){setLightboxImg(null);},
+      style:{position:"fixed",inset:0,zIndex:600,background:"rgba(0,0,0,0.94)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out"}
+    },
+      /*#__PURE__*/React.createElement("div",{
+        onClick:function(e){e.stopPropagation();},
+        style:{position:"relative",display:"flex",alignItems:"center"}
+      },
+        lightboxImg.idx > 0 && /*#__PURE__*/React.createElement("div",{
+          onClick:function(e){
+            e.stopPropagation();
+            var list=lightboxImg.list,idx=lightboxImg.idx;
+            if(idx>0) setLightboxImg({src:list[idx-1].chart_image,idx:idx-1,list:list});
+          },
+          style:{
+            position:"absolute",left:-52,top:0,bottom:0,width:48,
+            display:"flex",alignItems:"center",justifyContent:"center",
+            cursor:"pointer",color:"rgba(255,255,255,0.75)",fontSize:32,
+            background:"rgba(0,0,0,0.35)",borderRadius:"8px 0 0 8px",
+            userSelect:"none",zIndex:2
+          }
+        }, "\u2039"),
+        /*#__PURE__*/React.createElement("div",{style:{position:"relative"}},
+          /*#__PURE__*/React.createElement("img",{
+            src:lightboxImg.src, alt:"chart",
+            style:{maxWidth:"88vw",maxHeight:"84vh",borderRadius:8,display:"block",boxShadow:"0 8px 48px rgba(0,0,0,0.9)"}
+          }),
+          /*#__PURE__*/React.createElement("button",{type:"button",onClick:function(){setLightboxImg(null);},
+            style:{position:"absolute",top:-14,right:-14,width:28,height:28,borderRadius:"50%",background:"#333",border:"1px solid #555",color:"#fff",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}
+          },"\u00D7"),
+          /*#__PURE__*/React.createElement("div",{
+            style:{position:"absolute",bottom:-26,left:0,right:0,textAlign:"center",fontSize:10,color:"rgba(255,255,255,0.4)",fontFamily:F_MONO}
+          }, (lightboxImg.idx+1)+" / "+(lightboxImg.list?lightboxImg.list.length:1)+" \u00b7 \u2190\u2192 to navigate \u00b7 ESC to close")
+        ),
+        lightboxImg.list && lightboxImg.idx < lightboxImg.list.length-1 && /*#__PURE__*/React.createElement("div",{
+          onClick:function(e){
+            e.stopPropagation();
+            var list=lightboxImg.list,idx=lightboxImg.idx;
+            if(idx<list.length-1) setLightboxImg({src:list[idx+1].chart_image,idx:idx+1,list:list});
+          },
+          style:{
+            position:"absolute",right:-52,top:0,bottom:0,width:48,
+            display:"flex",alignItems:"center",justifyContent:"center",
+            cursor:"pointer",color:"rgba(255,255,255,0.75)",fontSize:32,
+            background:"rgba(0,0,0,0.35)",borderRadius:"0 8px 8px 0",
+            userSelect:"none",zIndex:2
+          }
+        }, "\u203a")
+      )
+    )), detailTrade && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     onClick: function onClick() {
       return setDetailTrade(null);
     },

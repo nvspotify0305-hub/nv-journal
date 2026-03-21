@@ -589,7 +589,7 @@ var DARK = {
   yellow: "#fbbf24",
   text: "#f0f0f0",
   textMid: "#888",
-  textDim: "#555",
+  textDim: "#777",
   inputBg: "#1c1c1c",
   shadow: "none",
   shadowElevated: "0 0 0 1px #333",
@@ -611,7 +611,7 @@ var LIGHT = {
   yellow: "#8a6500",
   text: "#000",
   textMid: "#444",
-  textDim: "#999",
+  textDim: "#777",
   inputBg: "#fff",
   shadow: "0 1px 3px rgba(0,0,0,0.08)",
   shadowElevated: "0 2px 8px rgba(0,0,0,0.13)",
@@ -619,6 +619,9 @@ var LIGHT = {
   gradeA: "#1a4fa0",
   gradeB: "#c0392b"
 };
+
+var F_MONO = "'JetBrains Mono',monospace";
+var F_DISPLAY = "'Bebas Neue',sans-serif";
 
 // ─── STORAGE ──────────────────────────────────────────────────────────────────
 function useStorage(key, init) {
@@ -972,7 +975,7 @@ function GradeMeter(_ref2) {
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: 56,
       color: gc,
       lineHeight: 1
@@ -981,7 +984,7 @@ function GradeMeter(_ref2) {
     style: {
       fontSize: 11,
       color: C.textMid,
-      fontFamily: "'JetBrains Mono',monospace"
+      fontFamily: F_MONO
     }
   }, score, "/", maxPts || 35, " pts"), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1057,7 +1060,7 @@ function GradeMeter(_ref2) {
       style: {
         fontSize: 9,
         color: C.textDim,
-        fontFamily: "'JetBrains Mono',monospace"
+        fontFamily: F_MONO
       }
     }, r.note), r.pts > 0 && /*#__PURE__*/React.createElement("span", {
       style: {
@@ -1151,7 +1154,7 @@ function TradeDetail(_ref3) {
         padding: "4px 8px",
         color: C.text,
         fontSize: 11,
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         boxSizing: "border-box"
       }, props.style)
     }));
@@ -1305,7 +1308,7 @@ function TradeDetail(_ref3) {
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: 28,
       color: gc
     }
@@ -1319,7 +1322,7 @@ function TradeDetail(_ref3) {
     style: {
       fontSize: 10,
       color: C.textDim,
-      fontFamily: "'JetBrains Mono',monospace"
+      fontFamily: F_MONO
     }
   }, T.date))), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1417,7 +1420,7 @@ function TradeDetail(_ref3) {
     }, l), /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 14,
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         color: col
       }
     }, v));
@@ -1613,7 +1616,7 @@ function TradeDetail(_ref3) {
       }
     }, bias), /*#__PURE__*/React.createElement("div", {
       style: {
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 16,
         color: cc
       }
@@ -2372,7 +2375,7 @@ function DonutChart(_ref12) {
       style: {
         fontSize: 11,
         color: C.text,
-        fontFamily: "'JetBrains Mono',monospace"
+        fontFamily: F_MONO
       }
     }, p.label), /*#__PURE__*/React.createElement("span", {
       style: {
@@ -2609,7 +2612,7 @@ function CryptoTracker(_ref13) {
   });
   var statStyle = function statStyle(col) {
     return {
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: 28,
       color: col,
       lineHeight: 1
@@ -2621,7 +2624,7 @@ function CryptoTracker(_ref13) {
     border: "1px solid ".concat(isDark ? "#333" : "#ccc"),
     borderRadius: 4,
     padding: "3px 7px",
-    fontFamily: "'JetBrains Mono',monospace",
+    fontFamily: F_MONO,
     fontSize: 11,
     width: "90px",
     outline: "none"
@@ -2894,7 +2897,7 @@ function CryptoTracker(_ref13) {
     })), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 10px",
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 17,
         color: C.accent
       }
@@ -2914,7 +2917,7 @@ function CryptoTracker(_ref13) {
       }
     }) : /*#__PURE__*/React.createElement("span", {
       style: {
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.textMid
       }
@@ -2934,7 +2937,7 @@ function CryptoTracker(_ref13) {
       }
     }) : /*#__PURE__*/React.createElement("span", {
       style: {
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.textMid
       }
@@ -2943,7 +2946,7 @@ function CryptoTracker(_ref13) {
     }))), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 10px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.textMid
       }
@@ -2952,7 +2955,7 @@ function CryptoTracker(_ref13) {
     })), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 10px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: h.price ? C.text : C.textDim
       }
@@ -2961,7 +2964,7 @@ function CryptoTracker(_ref13) {
     })) : "—"), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 10px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: h.price ? C.text : C.textDim
       }
@@ -2970,7 +2973,7 @@ function CryptoTracker(_ref13) {
     })) : "—"), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 10px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: h.price ? col : C.textDim
       }
@@ -2979,14 +2982,14 @@ function CryptoTracker(_ref13) {
     })) : "—"), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 10px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: h.price ? col : C.textDim
       }
     }, h.price ? "".concat(h.pnlPct >= 0 ? "+" : "").concat(h.pnlPct.toFixed(1), "%") : "—"), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 10px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.textMid
       }
@@ -3121,7 +3124,7 @@ function DayRow(_ref19) {
       borderRadius: 8,
       border: "1px solid ".concat(isPending ? C.yellow : editing ? C.accent : C.border),
       fontSize: 11,
-      fontFamily: "'JetBrains Mono',monospace",
+      fontFamily: F_MONO,
       boxShadow: C.shadow
     }
   }, !editing ? /*#__PURE__*/React.createElement("div", {
@@ -3259,7 +3262,7 @@ function ToastBar(_ref22t) {
     style: {
       position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
       background: bg, color: "#fff", borderRadius: 8,
-      padding: "10px 20px", fontSize: 12, fontFamily: "'JetBrains Mono',monospace",
+      padding: "10px 20px", fontSize: 12, fontFamily: F_MONO,
       fontWeight: 500, zIndex: 9999, pointerEvents: "none",
       boxShadow: "0 4px 16px rgba(0,0,0,0.25)", whiteSpace: "nowrap",
       animation: "fadeUp .18s ease forwards"
@@ -3276,7 +3279,7 @@ function GradeBadge(_ref22) {
   var fs = size === "lg" ? 28 : size === "xl" ? 42 : 14;
   return /*#__PURE__*/React.createElement("span", {
     style: {
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: fs,
       color: gc,
       lineHeight: 1
@@ -3291,7 +3294,7 @@ function Sect(_ref23) {
     C = _useTheme4.C;
   return /*#__PURE__*/React.createElement("div", {
     style: _objectSpread({
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: 15,
       letterSpacing: ".14em",
       color: C.textMid,
@@ -3434,7 +3437,7 @@ function Stat(_ref27) {
     className: "lbl"
   }, label), /*#__PURE__*/React.createElement("div", {
     style: {
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: fs,
       color: color || C.text,
       lineHeight: 1,
@@ -3444,7 +3447,7 @@ function Stat(_ref27) {
     style: {
       fontSize: 10,
       color: C.textDim,
-      fontFamily: "'JetBrains Mono',monospace",
+      fontFamily: F_MONO,
       marginTop: 3
     }
   }, sub));
@@ -3526,7 +3529,7 @@ function PositionCalc(_ref28) {
     border: "1px solid ".concat(isDark ? "#333" : "#ccc"),
     borderRadius: 5,
     padding: "7px 10px",
-    fontFamily: "'JetBrains Mono',monospace",
+    fontFamily: F_MONO,
     fontSize: 13,
     width: "100%",
     outline: "none",
@@ -3711,7 +3714,7 @@ function PositionCalc(_ref28) {
       }
     }, l), /*#__PURE__*/React.createElement("div", {
       style: {
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 24,
         color: col
       }
@@ -3737,7 +3740,7 @@ function PositionCalc(_ref28) {
         color: fxSelected.includes(p.sym) ? C.accent : C.textDim,
         fontSize: 11,
         fontWeight: fxSelected.includes(p.sym) ? 700 : 400,
-        fontFamily: "'JetBrains Mono',monospace"
+        fontFamily: F_MONO
       }
     }, p.sym);
   })), fxResults.length > 0 && /*#__PURE__*/React.createElement("div", {
@@ -3772,7 +3775,7 @@ function PositionCalc(_ref28) {
     }, /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 16,
         color: ["EURUSD", "GBPUSD"].includes(p.sym) ? C.accent : C.textMid
       }
@@ -3785,42 +3788,42 @@ function PositionCalc(_ref28) {
     }, p.name), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.textMid
       }
     }, "$", p.pipVal), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 20,
         color: p.stdLots >= 1 ? C.green : C.yellow
       }
     }, p.stdLots), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 20,
         color: C.green
       }
     }, p.miniLots), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 20,
         color: C.green
       }
     }, p.microLots), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.red
       }
     }, "$", p.actualRisk.toLocaleString()), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.yellow
       }
@@ -3888,7 +3891,7 @@ function PositionCalc(_ref28) {
     }, /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 16,
         color: ["6E", "M6E", "6B", "M6B"].includes(a.sym) ? C.accent : C.textMid
       }
@@ -3901,40 +3904,54 @@ function PositionCalc(_ref28) {
     }, a.name), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.textMid
       }
     }, "$", a.tickVal), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.red
       }
     }, "$", a.rpc), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 22,
         color: a.contracts > 0 ? C.green : C.textDim
       }
     }, a.contracts), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.red
       }
     }, "$", a.actualRisk.toLocaleString()), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "10px 12px",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontSize: 11,
         color: C.yellow
       }
     }, a.actualRiskPct, "%"));
   }))))));
+}
+function DashboardSkeleton() {
+  return React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12, padding: "18px 16px" } },
+    React.createElement("div", { className: "skel", style: { height: 80, borderRadius: 10, background: "#333" } }),
+    React.createElement("div", { className: "skel", style: { height: 120, borderRadius: 10, background: "#333" } }),
+    React.createElement("div", { className: "skel", style: { height: 60, borderRadius: 10, background: "#333" } })
+  );
+}
+function EmptyState(props) {
+  return React.createElement("div", { style: { textAlign: "center", padding: "48px 24px" } },
+    React.createElement("div", { style: { fontSize: 32, marginBottom: 8 } }, props.icon),
+    React.createElement("div", { style: { fontSize: 14, fontWeight: 600, marginBottom: 4, color: "#888" } }, props.title),
+    props.hint && React.createElement("div", { style: { fontSize: 11, opacity: 0.6, color: "#aaa" } }, props.hint)
+  );
 }
 function NVJournal() {
   var _TZ_MAP$tz;
@@ -4646,7 +4663,7 @@ function NVJournal() {
     });
   }
   var CSS = React.useMemo(function () {
-    return "\n    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}\n    body{background:".concat(C.bg, ";color:").concat(C.text, ";font-family:'Inter',sans-serif;min-height:100vh;overflow-anchor:none;}\n    ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:").concat(C.bg, ";}::-webkit-scrollbar-thumb{background:").concat(C.border, ";border-radius:2px;}\n    input,select,textarea{background:").concat(isDark ? "#0d0d0d" : "#fff", ";color:").concat(C.text, ";border:1px solid ").concat(isDark ? "#333" : C.border, ";border-radius:5px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;width:100%;outline:none;transition:border-color .15s;}\n    input:focus,select:focus,textarea:focus{border-color:").concat(C.accentDim, ";box-shadow:0 0 0 2px ").concat(C.accentGlow, ";}\n    select option{background:").concat(isDark ? "#111" : "#fff", ";}\n    textarea{resize:vertical;}button{cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}\n    input[type=checkbox]{width:14px;height:14px;accent-color:").concat(C.accent, ";cursor:pointer;}\n    .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:").concat(C.textDim, ";font-weight:600;display:block;margin-bottom:6px;}\n    .card-hover{transition:box-shadow .15s,border-color .15s;}.card-hover:hover{box-shadow:0 0 0 1px ").concat(C.accentDim, " !important;border-color:").concat(C.accentDim, " !important;}\n    @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}\n    @keyframes tabIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}\n    .fade{animation:fadeUp .18s ease forwards;}\n    .tab-panel{animation:tabIn .18s ease forwards;}\n  ");
+    return "\n    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}\n    body{background:".concat(C.bg, ";color:").concat(C.text, ";font-family:'Inter',sans-serif;min-height:100vh;overflow-anchor:none;scrollbar-width:thin;}\n    ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:").concat(C.bg, ";}::-webkit-scrollbar-thumb{background:").concat(C.border, ";border-radius:2px;}\n    input,select,textarea{background:").concat(isDark ? "#0d0d0d" : "#fff", ";color:").concat(C.text, ";border:1px solid ").concat(isDark ? "#333" : C.border, ";border-radius:5px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;width:100%;outline:none;transition:border-color .15s;}\n    input:focus,select:focus,textarea:focus{border-color:").concat(C.accentDim, ";box-shadow:0 0 0 2px ").concat(C.accentGlow, ";}\n    select option{background:").concat(isDark ? "#111" : "#fff", ";}\n    textarea{resize:vertical;}button{cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}\n    input[type=checkbox]{width:14px;height:14px;accent-color:").concat(C.accent, ";cursor:pointer;}\n    .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:").concat(C.textDim, ";font-weight:600;display:block;margin-bottom:6px;}\n    .card-hover{transition:box-shadow .15s,border-color .15s;}.card-hover:hover{box-shadow:0 0 0 1px ").concat(C.accentDim, " !important;border-color:").concat(C.accentDim, " !important;}\n    @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}\n    @keyframes tabIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}\n    .fade{animation:fadeUp .18s ease forwards;}\n    .tab-panel{animation:tabIn .18s ease forwards;}\n    .nav-tab:hover{background:rgba(128,128,128,0.1)!important}\n    @keyframes shimmer{0%{opacity:.6}50%{opacity:1}100%{opacity:.6}}\n    .skel{animation:shimmer 1.5s infinite}\n    .tab-panel>*{animation:tabIn .3s both}\n    .tab-panel>*:nth-child(1){animation-delay:0ms}.tab-panel>*:nth-child(2){animation-delay:40ms}.tab-panel>*:nth-child(3){animation-delay:80ms}.tab-panel>*:nth-child(4){animation-delay:120ms}.tab-panel>*:nth-child(5){animation-delay:160ms}.tab-panel>*:nth-child(6){animation-delay:200ms}.tab-panel>*:nth-child(7){animation-delay:240ms}.tab-panel>*:nth-child(8){animation-delay:280ms}.tab-panel>*:nth-child(9){animation-delay:320ms}.tab-panel>*:nth-child(10){animation-delay:360ms}\n    .stat-val{transition:transform .2s,color .2s;display:inline-block}\n  ");
   }, [isDark]);
 
   // ── Shared UI (stable primitives now via ThemeCtx, defined outside) ──
@@ -4725,7 +4742,7 @@ function NVJournal() {
         }
       })), /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 18,
           color: col
         }
@@ -4867,7 +4884,7 @@ function NVJournal() {
     }, "Equity Curve"), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 11,
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         color: lc,
         fontWeight: 600
       }
@@ -4907,7 +4924,7 @@ function NVJournal() {
       cy: y(last),
       r: 3.5,
       fill: lc
-    }), uniqueMarkers.map(function (i) {
+    }, /*#__PURE__*/React.createElement("title", null, (sorted[sorted.length - 1] ? sorted[sorted.length - 1].date : "") + " | " + (last >= 0 ? "+" : "") + last.toFixed(2) + "R")), uniqueMarkers.map(function (i) {
       return /*#__PURE__*/React.createElement("g", {
         key: i
       }, /*#__PURE__*/React.createElement("line", {
@@ -4935,13 +4952,13 @@ function NVJournal() {
       style: {
         fontSize: 9,
         color: C.textDim,
-        fontFamily: "'JetBrains Mono',monospace"
+        fontFamily: F_MONO
       }
     }, (_sorted$ = sorted[0]) === null || _sorted$ === void 0 ? void 0 : _sorted$.date), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 9,
         color: C.textDim,
-        fontFamily: "'JetBrains Mono',monospace"
+        fontFamily: F_MONO
       }
     }, (_sorted = sorted[sorted.length - 1]) === null || _sorted === void 0 ? void 0 : _sorted.date)));
   };
@@ -4969,7 +4986,7 @@ function NVJournal() {
       }
     }, "Max Drawdown"), /*#__PURE__*/React.createElement("span", {
       style: {
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 22,
         color: C.red
       }
@@ -4986,7 +5003,7 @@ function NVJournal() {
       }
     }, "Current Streak"), /*#__PURE__*/React.createElement("span", {
       style: {
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 22,
         color: m.curStreakType === "W" ? C.green : m.curStreakType === "L" ? C.red : C.textDim
       }
@@ -5004,7 +5021,7 @@ function NVJournal() {
     }, "Best Win Streak"), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 13,
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         color: C.green
       }
     }, m.maxWinStreak)), /*#__PURE__*/React.createElement("div", {
@@ -5021,7 +5038,7 @@ function NVJournal() {
     }, "Worst Loss Streak"), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 13,
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         color: C.red
       }
     }, m.maxLossStreak)), /*#__PURE__*/React.createElement("div", {
@@ -5038,7 +5055,7 @@ function NVJournal() {
     }, "Avg RR"), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 13,
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         color: C.accent
       }
     }, m.avgLoss > 0 ? "".concat((m.avgWin / m.avgLoss).toFixed(2), ":1") : "—"))));
@@ -5095,7 +5112,7 @@ function NVJournal() {
         }
       }, /*#__PURE__*/React.createElement("span", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 24,
           color: col
         }
@@ -5177,18 +5194,18 @@ function NVJournal() {
         style: {
           fontSize: 10,
           color: C.textMid,
-          fontFamily: "'JetBrains Mono',monospace"
+          fontFamily: F_MONO
         }
       }, total, "T"), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 10,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: C.accent
         }
       }, winRate, "%"), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 10,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: totalR >= 0 ? C.green : C.red
         }
       }, totalR > 0 ? "+" : "", totalR, "R"))), /*#__PURE__*/React.createElement("div", {
@@ -5232,7 +5249,7 @@ function NVJournal() {
           }
         },
           /*#__PURE__*/React.createElement("div", {
-            style: { fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, color: C.textMid, letterSpacing: ".1em", marginBottom: 8 }
+            style: { fontFamily: F_DISPLAY, fontSize: 15, color: C.textMid, letterSpacing: ".1em", marginBottom: 8 }
           }, SL(s)),
           [
             ["Trades", m.total, C.accent],
@@ -5245,7 +5262,7 @@ function NVJournal() {
               style: { display: "flex", justifyContent: "space-between", marginBottom: 3 }
             },
               /*#__PURE__*/React.createElement("span", { style: { fontSize: 9, color: C.textDim } }, row[0]),
-              /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: row[2] } }, row[1])
+              /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, fontFamily: F_MONO, color: row[2] } }, row[1])
             );
           })
         );
@@ -5271,7 +5288,7 @@ function NVJournal() {
         width: "100%",
         borderCollapse: "collapse",
         fontSize: 11,
-        fontFamily: "'JetBrains Mono',monospace"
+        fontFamily: F_MONO
       }
     }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
       style: {
@@ -5360,7 +5377,7 @@ function NVJournal() {
         }
       }, /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 26,
           color: gc,
           marginBottom: 4
@@ -5385,7 +5402,7 @@ function NVJournal() {
         }, l), /*#__PURE__*/React.createElement("span", {
           style: {
             fontSize: 10,
-            fontFamily: "'JetBrains Mono',monospace",
+            fontFamily: F_MONO,
             color: col || C.textMid
           }
         }, v));
@@ -5480,7 +5497,7 @@ function NVJournal() {
       }, l), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 10,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: C.textMid
         }
       }, v));
@@ -5535,7 +5552,7 @@ function NVJournal() {
       }, conf.label), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 10,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: C.textDim,
           width: 24,
           textAlign: "right"
@@ -5543,7 +5560,7 @@ function NVJournal() {
       }, w.length, "T"), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 11,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: enough ? barC : C.textDim,
           width: 38,
           textAlign: "right"
@@ -5551,7 +5568,7 @@ function NVJournal() {
       }, enough ? "".concat(mw.winRate, "%") : "—"), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 10,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: enough ? diff > 0 ? C.green : diff < 0 ? C.red : C.textDim : C.textDim,
           width: 36,
           textAlign: "right"
@@ -5644,7 +5661,7 @@ function NVJournal() {
           }
         }, /*#__PURE__*/React.createElement("div", {
           style: {
-            fontFamily: "'Bebas Neue',sans-serif",
+            fontFamily: F_DISPLAY,
             fontSize: 16,
             color: col
           }
@@ -5652,19 +5669,19 @@ function NVJournal() {
           style: {
             fontSize: 9,
             color: C.textDim,
-            fontFamily: "'JetBrains Mono',monospace"
+            fontFamily: F_MONO
           }
         }, m.total, "T"), enough ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
           style: {
             fontSize: 10,
             color: m.winRate >= 50 ? C.green : C.red,
-            fontFamily: "'JetBrains Mono',monospace"
+            fontFamily: F_MONO
           }
         }, m.winRate, "%"), /*#__PURE__*/React.createElement("div", {
           style: {
             fontSize: 9,
             color: m.totalR >= 0 ? C.green : C.red,
-            fontFamily: "'JetBrains Mono',monospace"
+            fontFamily: F_MONO
           }
         }, m.totalR > 0 ? "+" : "", m.totalR, "R")) : /*#__PURE__*/React.createElement("div", {
           style: {
@@ -5703,7 +5720,7 @@ function NVJournal() {
       style: {
         fontSize: 9,
         color: C.textDim,
-        fontFamily: "'JetBrains Mono',monospace"
+        fontFamily: F_MONO
       }
     }, "Mar 2026+")), /*#__PURE__*/React.createElement("div", {
       style: {
@@ -5738,19 +5755,19 @@ function NVJournal() {
         style: {
           fontSize: 10,
           color: C.textDim,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           marginBottom: 4
         }
       }, m.total, "T"), enough ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 22,
           color: m.winRate >= 50 ? C.green : C.red
         }
       }, m.winRate, "%"), /*#__PURE__*/React.createElement("div", {
         style: {
           fontSize: 10,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: m.totalR >= 0 ? C.green : C.red
         }
       }, m.totalR > 0 ? "+" : "", m.totalR, "R"), /*#__PURE__*/React.createElement("div", {
@@ -5817,7 +5834,7 @@ function NVJournal() {
         style: {
           fontSize: 9,
           color: phaseColors[phase],
-          fontFamily: "'JetBrains Mono',monospace"
+          fontFamily: F_MONO
         }
       }, phase, " ", count);
     }))));
@@ -5852,7 +5869,7 @@ function NVJournal() {
         }
       }, /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 13,
           color: C.accent,
           marginBottom: 6
@@ -5877,7 +5894,7 @@ function NVJournal() {
         }, l), /*#__PURE__*/React.createElement("span", {
           style: {
             fontSize: 10,
-            fontFamily: "'JetBrains Mono',monospace",
+            fontFamily: F_MONO,
             color: col || C.textMid
           }
         }, v));
@@ -5915,7 +5932,7 @@ function NVJournal() {
         }
       }, /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 22,
           color: col,
           marginBottom: 4
@@ -5940,7 +5957,7 @@ function NVJournal() {
         }, l), /*#__PURE__*/React.createElement("span", {
           style: {
             fontSize: 10,
-            fontFamily: "'JetBrains Mono',monospace",
+            fontFamily: F_MONO,
             color: c || C.textMid
           }
         }, v));
@@ -6000,7 +6017,7 @@ function NVJournal() {
         className: "lbl"
       }, label), /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 26,
           color: col,
           lineHeight: 1.1,
@@ -6010,7 +6027,7 @@ function NVJournal() {
         style: {
           fontSize: 10,
           color: C.textDim,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           marginTop: 2
         }
       }, t, " trade", t !== 1 ? "s" : ""));
@@ -6077,7 +6094,7 @@ function NVJournal() {
       }
     }, "Execution Rate"), /*#__PURE__*/React.createElement("div", {
       style: {
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 32,
         color: execCol
       }
@@ -6129,7 +6146,7 @@ function NVJournal() {
         }
       }, l), /*#__PURE__*/React.createElement("span", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 18,
           color: col
         }
@@ -6190,7 +6207,7 @@ function NVJournal() {
         }
       }, l), /*#__PURE__*/React.createElement("span", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 20,
           color: col
         }
@@ -6399,7 +6416,7 @@ function NVJournal() {
         padding: "4px 12px",
         color: C.text,
         fontSize: 11,
-        fontFamily: "'JetBrains Mono',monospace"
+        fontFamily: F_MONO
       }
     }, /*#__PURE__*/React.createElement("option", {
       value: getWeekKey(today())
@@ -6444,7 +6461,7 @@ function NVJournal() {
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 42,
         color: takenM.totalR > 0 ? C.green : takenM.totalR < 0 ? C.red : C.textMid,
         lineHeight: 1,
@@ -6495,7 +6512,7 @@ function NVJournal() {
       }
     }, "System Utilisation"), /*#__PURE__*/React.createElement("span", {
       style: {
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 28,
         color: gc
       }
@@ -6561,7 +6578,7 @@ function NVJournal() {
         }
       }, /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 24,
           color: col
         }
@@ -6605,7 +6622,7 @@ function NVJournal() {
         key: g
       }, /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 32,
           color: color,
           marginBottom: 8
@@ -6632,7 +6649,7 @@ function NVJournal() {
         }, l), /*#__PURE__*/React.createElement("span", {
           style: {
             fontSize: 11,
-            fontFamily: "'JetBrains Mono',monospace",
+            fontFamily: F_MONO,
             color: col
           }
         }, v));
@@ -6657,7 +6674,7 @@ function NVJournal() {
         className: "lbl"
       }, l), /*#__PURE__*/React.createElement("div", {
         style: {
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 26,
           color: col,
           marginTop: 2
@@ -6700,7 +6717,7 @@ function NVJournal() {
       }, t, "T"), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 11,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: r > 0 ? C.green : r < 0 ? C.red : C.textDim
         }
       }, r > 0 ? "+" : "", r, "R"), /*#__PURE__*/React.createElement("span", {
@@ -6733,7 +6750,7 @@ function NVJournal() {
       }, l), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 12,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: col
         }
       }, v));
@@ -6767,7 +6784,7 @@ function NVJournal() {
       }, l), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 12,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: col
         }
       }, v));
@@ -6900,7 +6917,7 @@ function NVJournal() {
           borderRadius: 7,
           border: "1px solid ".concat(t.trade_taken ? r > 0 ? C.green + "44" : r < 0 ? C.red + "44" : C.border : C.border),
           fontSize: 11,
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           alignItems: "center",
           cursor: "pointer"
         }
@@ -6923,7 +6940,7 @@ function NVJournal() {
       }, t.direction), /*#__PURE__*/React.createElement("span", {
         style: {
           color: tgc,
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 14
         }
       }, tGrade), /*#__PURE__*/React.createElement("span", {
@@ -6970,7 +6987,7 @@ function NVJournal() {
         borderRadius: 7,
         border: "1px solid ".concat(isSel ? C.accent : isRuleBreak ? C.red : C.border),
         fontSize: 11,
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         alignItems: "center",
         boxShadow: C.shadow,
         cursor: "pointer"
@@ -7137,7 +7154,7 @@ function NVJournal() {
     }
   }), /*#__PURE__*/React.createElement("span", {
     style: {
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: 13,
       color: C.textMid,
       letterSpacing: ".18em"
@@ -7151,6 +7168,7 @@ function NVJournal() {
     return /*#__PURE__*/React.createElement("button", {
       type: "button",
       key: t,
+      className: "nav-tab",
       onClick: function onClick() {
         return switchTab(t);
       },
@@ -7176,7 +7194,7 @@ function NVJournal() {
     style: {
       fontSize: 10,
       color: C.textDim,
-      fontFamily: "'JetBrains Mono',monospace"
+      fontFamily: F_MONO
     }
   }, today(), " ", /*#__PURE__*/React.createElement("span", {
     style: {
@@ -7273,7 +7291,7 @@ function NVJournal() {
       borderRadius: 6,
       color: C.text,
       fontSize: 11,
-      fontFamily: "'JetBrains Mono',monospace",
+      fontFamily: F_MONO,
       cursor: "pointer",
       outline: "none"
     }
@@ -7317,7 +7335,7 @@ function NVJournal() {
       borderRadius: 6,
       color: dst ? C.yellow : C.textDim,
       fontSize: 11,
-      fontFamily: "'JetBrains Mono',monospace",
+      fontFamily: F_MONO,
       cursor: "pointer",
       fontWeight: dst ? 700 : 400
     }
@@ -7463,7 +7481,7 @@ function NVJournal() {
 
       var lbl = { fontSize:9, opacity:0.55, letterSpacing:".12em", textTransform:"uppercase", fontFamily:"'Inter',sans-serif", color:accentCol };
       var val = { fontSize:10, fontWeight:600, fontFamily:"'Inter',sans-serif", color:accentCol };
-      var mono = { fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:accentCol, opacity:0.75 };
+      var mono = { fontSize:10, fontFamily:F_MONO, color:accentCol, opacity:0.75 };
       var sep = React.createElement("div", { style:{ width:1, height:14, background:borderCol, flexShrink:0 } });
 
       // ── Left chunk ──
@@ -7505,7 +7523,7 @@ function NVJournal() {
       var weekRChunk = mode === "weekend"
         ? React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:5 } },
             React.createElement("span", { style: lbl }, "WEEK"),
-            React.createElement("span", { style:{ fontSize:11, fontFamily:"'Bebas Neue',sans-serif",
+            React.createElement("span", { style:{ fontSize:11, fontFamily:F_DISPLAY,
               color: weekR > 0 ? C.green : weekR < 0 ? C.red : C.textMid, lineHeight:1 } },
               (weekR > 0 ? "+" : "") + weekR + "R"
             ),
@@ -7516,7 +7534,7 @@ function NVJournal() {
       var weekBiasChunk = (mode === "weekend" && weekBiasTotal >= 1)
         ? React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:5 } },
             React.createElement("span", { style: lbl }, "BIAS ACC"),
-            React.createElement("span", { style:{ fontSize:11, fontFamily:"'Bebas Neue',sans-serif",
+            React.createElement("span", { style:{ fontSize:11, fontFamily:F_DISPLAY,
               color: (weekBiasCorrect/weekBiasTotal) >= 0.6 ? C.green : (weekBiasCorrect/weekBiasTotal) >= 0.4 ? C.yellow : C.red,
               lineHeight:1 } },
               Math.round(weekBiasCorrect/weekBiasTotal*100) + "%"
@@ -7542,7 +7560,7 @@ function NVJournal() {
       var rChunk = (mode !== "weekend" && todayTrades.length > 0)
         ? React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:5 } },
             React.createElement("span", { style: lbl }, "TODAY"),
-            React.createElement("span", { style:{ fontSize:11, fontFamily:"'Bebas Neue',sans-serif", color:todayRCol, lineHeight:1 } }, todayRStr),
+            React.createElement("span", { style:{ fontSize:11, fontFamily:F_DISPLAY, color:todayRCol, lineHeight:1 } }, todayRStr),
             React.createElement("span", { style: Object.assign({}, mono, { fontSize:9 }) }, todayTrades.length + "T")
           )
         : null;
@@ -7551,7 +7569,7 @@ function NVJournal() {
       var yChunk = (mode !== "weekend" && mode !== "live" && yTrades.length > 0)
         ? React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:5 } },
             React.createElement("span", { style: lbl }, "YDAY"),
-            React.createElement("span", { style:{ fontSize:11, fontFamily:"'Bebas Neue',sans-serif",
+            React.createElement("span", { style:{ fontSize:11, fontFamily:F_DISPLAY,
               color: yR > 0 ? C.green : yR < 0 ? C.red : C.textMid, lineHeight:1 } },
               (yR > 0 ? "+" : "") + yR + "R"
             )
@@ -7606,7 +7624,9 @@ function NVJournal() {
       display: "flex",
       alignItems: "center",
       gap: 10,
-      boxShadow: C.shadow
+      boxShadow: C.shadow,
+      backdropFilter: "blur(8px)",
+      WebkitBackdropFilter: "blur(8px)"
     }
   }, tab === "Dashboard" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
     style: {
@@ -7801,7 +7821,7 @@ function NVJournal() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: 36,
       color: C.yellow
     }
@@ -7824,7 +7844,7 @@ function NVJournal() {
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 36,
         color: C.accent
       }
@@ -7843,7 +7863,7 @@ function NVJournal() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       fontSize: 36,
       color: C.red
     }
@@ -7882,7 +7902,7 @@ function NVJournal() {
       style: {
         color: C.yellow,
         fontWeight: 700,
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         fontSize: 15
       }
     }, n), " ", /*#__PURE__*/React.createElement("span", {
@@ -7922,7 +7942,7 @@ function NVJournal() {
     }, l), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 15,
-        fontFamily: "'Bebas Neue',sans-serif",
+        fontFamily: F_DISPLAY,
         color: col
       }
     }, v));
@@ -7939,7 +7959,7 @@ function NVJournal() {
   }, "Missed A/A+"), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 15,
-      fontFamily: "'Bebas Neue',sans-serif",
+      fontFamily: F_DISPLAY,
       color: C.yellow
     }
   }, tradesFiltered.filter(function (t) {
@@ -8107,7 +8127,7 @@ function NVJournal() {
                 style:{width:"100%",height:"100%",objectFit:"cover",display:"block"}
               }),
               /*#__PURE__*/React.createElement("div", {
-                style:{position:"absolute",top:4,left:4,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,fontWeight:700,
+                style:{position:"absolute",top:4,left:4,fontFamily:F_DISPLAY,fontSize:11,fontWeight:700,
                   color:t.grade==="A+"?(isDark?"#000":"#fff"):"#fff",
                   background:gc,padding:"1px 5px",borderRadius:3,lineHeight:1.4}
               }, t.grade),
@@ -8119,7 +8139,7 @@ function NVJournal() {
             /*#__PURE__*/React.createElement("div", {style:{padding:"5px 8px"}},
               /*#__PURE__*/React.createElement("div", {style:{display:"flex",justifyContent:"space-between",alignItems:"baseline"}},
                 /*#__PURE__*/React.createElement("span", {
-                  style:{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:rCol,lineHeight:1}
+                  style:{fontFamily:F_DISPLAY,fontSize:14,color:rCol,lineHeight:1}
                 }, t.trade_taken?(rVal>0?"+":"")+rVal+"R":"NT"),
                 /*#__PURE__*/React.createElement("span", {style:{fontSize:8,color:C.textMid}}, t.pair)
               ),
@@ -8404,8 +8424,7 @@ function NVJournal() {
     /*#__PURE__*/React.createElement("line", { x1: 8, y1: 9, x2: 16, y2: 9, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
     /*#__PURE__*/React.createElement("line", { x1: 8, y1: 13, x2: 14, y2: 13, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
     /*#__PURE__*/React.createElement("line", { x1: 8, y1: 17, x2: 11, y2: 17, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" })
-  ), /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: C.textDim, fontWeight: 600 } }, "No trades in this period"),
-  /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: C.textDim, marginTop: 4, opacity: 0.7 } }, "Adjust the period filter or log a new setup"))), tab === "Review" && /*#__PURE__*/React.createElement("div", {
+  ), /*#__PURE__*/React.createElement(EmptyState, { icon: "\uD83D\uDCCB", title: "No trades in this period", hint: "Adjust the period filter or log a new setup" }))), tab === "Review" && /*#__PURE__*/React.createElement("div", {
     className: "tab-panel",
     style: {
       display: "flex",
@@ -8490,60 +8509,60 @@ function NVJournal() {
       }, /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: C.text,
           fontWeight: 600
         }
       }, mo), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: C.textMid
         }
       }, taken.length), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 16,
           color: rCol
         }
       }, m.totalR > 0 ? "+" : "", m.totalR, "R"), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: m.winRate >= 50 ? C.green : m.winRate > 0 ? C.red : C.textDim
         }
       }, taken.length ? "".concat(m.winRate, "%") : "—"), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: m.expectancy >= 0 ? C.green : C.red
         }
       }, taken.length ? "".concat(m.expectancy, "R") : "—"), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 14,
           color: C.gradeAp
         }
       }, aPlus), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 14,
           color: C.gradeA
         }
       }, aGrade), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'Bebas Neue',sans-serif",
+          fontFamily: F_DISPLAY,
           fontSize: 14,
           color: C.gradeB
         }
       }, bGrade), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
-          fontFamily: "'JetBrains Mono',monospace",
+          fontFamily: F_MONO,
           color: ruleBreaks === 0 ? C.green : C.red
         }
       }, ruleBreaks));
@@ -8647,8 +8666,7 @@ function NVJournal() {
     /*#__PURE__*/React.createElement("line", { x1: 3, y1: 9, x2: 21, y2: 9, stroke: C.textDim, strokeWidth: 1.5 }),
     /*#__PURE__*/React.createElement("line", { x1: 8, y1: 2, x2: 8, y2: 6, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
     /*#__PURE__*/React.createElement("line", { x1: 16, y1: 2, x2: 16, y2: 6, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" })
-  ), /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: C.textDim, fontWeight: 600 } }, "No days logged yet"),
-  /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: C.textDim, marginTop: 4, opacity: 0.7 } }, "Log your daily bias to track accuracy over time")))), tab === "Log Trade" && /*#__PURE__*/React.createElement("div", {
+  ), /*#__PURE__*/React.createElement(EmptyState, { icon: "\uD83D\uDCC5", title: "No days logged yet", hint: "Log your daily bias to track accuracy over time" })))), tab === "Log Trade" && /*#__PURE__*/React.createElement("div", {
     className: "tab-panel",
     style: {
       position: "relative",
@@ -8944,7 +8962,7 @@ function NVJournal() {
   }, /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 11,
-      fontFamily: "'JetBrains Mono',monospace",
+      fontFamily: F_MONO,
       color: C.textDim
     }
   }, gradeDisplay.score, "/", gradeDisplay.maxPts || 35, "pts"))), /*#__PURE__*/React.createElement("div", {
@@ -9023,7 +9041,7 @@ function NVJournal() {
         color: tf.smt_h4_pair === p ? C.accent : C.textDim,
         fontSize: 11,
         cursor: "pointer",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontWeight: tf.smt_h4_pair === p ? 700 : 400
       }
     }, p);
@@ -9071,7 +9089,7 @@ function NVJournal() {
         color: tf.smt_h1_pair === p ? C.accent : C.textDim,
         fontSize: 11,
         cursor: "pointer",
-        fontFamily: "'JetBrains Mono',monospace",
+        fontFamily: F_MONO,
         fontWeight: tf.smt_h1_pair === p ? 700 : 400
       }
     }, p);
@@ -9775,14 +9793,14 @@ function NVJournal() {
     style: {
       fontSize: 10,
       color: C.textDim,
-      fontFamily: "'JetBrains Mono',monospace",
+      fontFamily: F_MONO,
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v60")), /*#__PURE__*/React.createElement("span", {
+  }, "NV JOURNAL - v61")), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 9,
       color: C.textDim,
-      fontFamily: "'JetBrains Mono',monospace",
+      fontFamily: F_MONO,
       letterSpacing: ".08em",
       opacity: 0.6,
       marginLeft: 8
@@ -9791,7 +9809,7 @@ function NVJournal() {
     style: {
       fontSize: 10,
       color: C.textDim,
-      fontFamily: "'JetBrains Mono',monospace"
+      fontFamily: F_MONO
     }
   }, "\xA9 ", new Date().getFullYear(), " Nerijus Velza. All rights reserved."), lightboxImg && /*#__PURE__*/React.createElement("div", {
       onClick: function(){setLightboxImg(null);},
@@ -9824,7 +9842,7 @@ function NVJournal() {
             style:{position:"absolute",top:-14,right:-14,width:28,height:28,borderRadius:"50%",background:"#333",border:"1px solid #555",color:"#fff",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}
           },"\u00D7"),
           /*#__PURE__*/React.createElement("div",{
-            style:{position:"absolute",bottom:-26,left:0,right:0,textAlign:"center",fontSize:10,color:"rgba(255,255,255,0.4)",fontFamily:"'JetBrains Mono',monospace"}
+            style:{position:"absolute",bottom:-26,left:0,right:0,textAlign:"center",fontSize:10,color:"rgba(255,255,255,0.4)",fontFamily:F_MONO}
           }, (lightboxImg.idx+1)+" / "+(lightboxImg.list?lightboxImg.list.length:1)+" \u00b7 \u2190\u2192 to navigate \u00b7 ESC to close")
         ),
         lightboxImg.list && lightboxImg.idx < lightboxImg.list.length-1 && /*#__PURE__*/React.createElement("div",{
