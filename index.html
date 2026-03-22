@@ -3417,6 +3417,23 @@ function Tog(_ref26) {
     }
   }, label));
 }
+function Clock(_ref_clk) {
+  var tz = _ref_clk.tz, dst = _ref_clk.dst, accentColor = _ref_clk.accentColor;
+  var _useState_clk = useState(function () { return new Date(); }),
+    _useState_clk2 = _slicedToArray(_useState_clk, 2),
+    now = _useState_clk2[0],
+    setNow = _useState_clk2[1];
+  useEffect(function () {
+    var t = setInterval(function () { return setNow(new Date()); }, 30000);
+    return function () { return clearInterval(t); };
+  }, []);
+  var tzLocale = tz === "New York" ? "en-US" : tz === "Sydney" ? "en-AU" : "en-IE";
+  var tzIANA = tz === "New York" ? "America/New_York" : tz === "Sydney" ? "Australia/Sydney" : "Europe/Dublin";
+  var clockStr = now.toLocaleTimeString(tzLocale, {
+    timeZone: tzIANA, hour: "2-digit", minute: "2-digit", hour12: false
+  });
+  return React.createElement("span", { style: { color: accentColor } }, clockStr);
+}
 function AnimatedNumber(_ref_an) {
   var value = _ref_an.value, duration = _ref_an.duration;
   var dur = duration || 600;
@@ -4003,12 +4020,6 @@ function NVJournal() {
     dst = _useStorage6[0],
     setDst = _useStorage6[1];
   var _tzMap = dst && TZ_DST_MAP[tz] || TZ_MAP[tz];
-  var _useState31 = useState(function () {
-      return new Date();
-    }),
-    _useState32 = _slicedToArray(_useState31, 2),
-    now = _useState32[0],
-    setNow = _useState32[1];
   var _useStateToast = useState(null),
     _useStateToast2 = _slicedToArray(_useStateToast, 2),
     toast = _useStateToast2[0],
@@ -4019,22 +4030,8 @@ function NVJournal() {
     setToast({ msg: msg, type: type });
     setTimeout(function () { setToast(null); }, dur);
   };
-  useEffect(function () {
-    var t = setInterval(function () {
-      return setNow(new Date());
-    }, 30000);
-    return function () {
-      return clearInterval(t);
-    };
-  }, []);
   var tzLocale = tz === "New York" ? "en-US" : tz === "Sydney" ? "en-AU" : "en-IE";
   var tzIANA = tz === "New York" ? "America/New_York" : tz === "Sydney" ? "Australia/Sydney" : "Europe/Dublin";
-  var clockStr = now.toLocaleTimeString(tzLocale, {
-    timeZone: tzIANA,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  });
   var SL = function SL(s) {
     var _tzMap$labels$SESSION;
     return (_tzMap$labels$SESSION = _tzMap === null || _tzMap === void 0 ? void 0 : _tzMap.labels[SESSIONS.indexOf(s)]) !== null && _tzMap$labels$SESSION !== void 0 ? _tzMap$labels$SESSION : s;
@@ -4088,7 +4085,8 @@ function NVJournal() {
   useEffect(function() {
     var interval = setInterval(function() {
       var q = nvQueueGet();
-      setPendingSync(q.length > 0);
+      var hasPending = q.length > 0;
+      setPendingSync(function(prev) { return prev === hasPending ? prev : hasPending; });
       if (!navigator.onLine || q.length === 0) return;
       Promise.all(q.map(function(e) {
         return fetch(SB_URL + "/rest/v1/" + e.tbl, {
@@ -4629,7 +4627,7 @@ function NVJournal() {
     sbSave("days", rec);
   }
   function flipBias(d, newBias) {
-    var ln = new Date(now.toLocaleString("en-US", { timeZone: tzIANA }));
+    var ln = new Date(new Date().toLocaleString("en-US", { timeZone: tzIANA }));
     var flipTime = ln.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
     var updated = _objectSpread({}, d, {
       bias: newBias,
@@ -7237,11 +7235,7 @@ function NVJournal() {
       color: C.textDim,
       fontFamily: F_MONO
     }
-  }, today(), " ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: C.accent
-    }
-  }, clockStr)), /*#__PURE__*/React.createElement("span", {
+  }, today(), " ", /*#__PURE__*/React.createElement(Clock, { tz: tz, dst: dst, accentColor: C.accent })), /*#__PURE__*/React.createElement("span", {
     title: syncing ? "Syncing\u2026" : pendingSync ? "Unsynced trades queued" : syncError ? "Supabase unreachable" : "Synced",
     style: {
       display: "inline-block",
@@ -7411,7 +7405,7 @@ function NVJournal() {
       var tzM = dst && TZ_DST_MAP[tz] || TZ_MAP[tz];
       var cuts = (tzM && tzM.autoH) || [11, 15, 19];
       var sessionStarts = ["7AM", "11AM", "3PM"];
-      var nowLocal = new Date(now.toLocaleString("en-US", {timeZone: tzIANA}));
+      var nowLocal = new Date(new Date().toLocaleString("en-US", {timeZone: tzIANA}));
       var dow = nowLocal.getDay(); // 0=Sun, 6=Sat
       var isWeekend = dow === 0 || dow === 6;
       var nowH = nowLocal.getHours();
