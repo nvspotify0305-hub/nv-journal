@@ -7414,22 +7414,21 @@ function NVJournal() {
   }), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: function onClick() {
-      return setIsDark(function (d) {
-        return !d;
-      });
+      try { localStorage.removeItem(NV_LOCK_KEY); } catch(e) {}
+      setUnlocked(false);
     },
+    title: "Lock app",
     style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 5,
       padding: "4px 11px",
       background: "transparent",
       border: "1px solid ".concat(C.border),
       borderRadius: 20,
       color: C.textMid,
-      fontSize: 11
+      fontSize: 13,
+      lineHeight: 1,
+      cursor: "pointer"
     }
-  }, /*#__PURE__*/React.createElement("span", null, isDark ? "☀️" : "🌙"), /*#__PURE__*/React.createElement("span", null, isDark ? "Light" : "Dark")), /*#__PURE__*/React.createElement("button", {
+  }, "\uD83D\uDD12"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: function onClick() {
       return setShowSettings(function (s) {
@@ -7552,14 +7551,11 @@ function NVJournal() {
       fontSize: 11,
       color: C.textDim
     }
-  }, "Danger zone:"), /*#__PURE__*/React.createElement("button", {
+  }, "Theme:"), /*#__PURE__*/React.createElement("button", {
     type: "button",
-    onClick: function onClick() {
-      try { localStorage.removeItem(NV_LOCK_KEY); } catch(e) {}
-      setUnlocked(false);
-      setShowSettings(false);
-    },
+    onClick: function onClick() { return setIsDark(function(d) { return !d; }); },
     style: {
+      display: "flex", alignItems: "center", gap: 5,
       padding: "4px 14px",
       background: "transparent",
       border: "1px solid ".concat(C.border),
@@ -7567,7 +7563,10 @@ function NVJournal() {
       color: C.textMid,
       fontSize: 11
     }
-  }, "\uD83D\uDD12 Lock"), /*#__PURE__*/React.createElement("button", {
+  }, React.createElement("span", null, isDark ? "\u2600\uFE0F" : "\uD83C\uDF19"), React.createElement("span", null, isDark ? "Light" : "Dark")),
+  /*#__PURE__*/React.createElement("span", {
+    style: { fontSize: 11, color: C.textDim, marginLeft: 12 }
+  }, "Danger zone:"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: function onClick() {
       setShowSettings(false);
