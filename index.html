@@ -3428,20 +3428,24 @@ function Stat(_ref27) {
   var _useTheme7 = useTheme(),
     C = _useTheme7.C,
     isDark = _useTheme7.isDark;
-  var fs = size === "xl" ? 48 : size === "lg" ? 26 : size === "sm" ? 13 : 18;
+  var fs = size === "xl" ? 56 : size === "lg" ? 26 : size === "sm" ? 13 : 18;
   var heroStyle = hero ? {
-    borderLeft: "3px solid ".concat(heroColor || C.border),
-    background: (color && color !== C.text && color !== C.border) ? color.replace(/^(#[0-9a-fA-F]{3,6})$/, function(h){ return h; }) + (isDark ? "12" : "10") : "transparent"
+    borderLeft: "4px solid ".concat(heroColor || C.border),
+    background: (color && color !== C.text && color !== C.border) ? color.replace(/^(#[0-9a-fA-F]{3,6})$/, function(h){ return h; }) + (isDark ? "1a" : "10") : "transparent",
+    padding: "24px 22px",
+    boxShadow: heroColor && heroColor !== C.border ? "0 6px 28px ".concat(heroColor, isDark ? "30" : "20") : undefined
   } : {};
   return /*#__PURE__*/React.createElement(Card, { style: heroStyle }, /*#__PURE__*/React.createElement("span", {
-    className: "lbl"
+    className: "lbl",
+    style: hero ? { fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase" } : {}
   }, label), /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: F_DISPLAY,
       fontSize: fs,
       color: color || C.text,
       lineHeight: 1,
-      marginTop: 2
+      marginTop: hero ? 6 : 2,
+      fontWeight: hero ? 700 : undefined
     }
   }, value), sub && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -4663,7 +4667,7 @@ function NVJournal() {
     });
   }
   var CSS = React.useMemo(function () {
-    return "\n    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}\n    body{background:".concat(C.bg, ";color:").concat(C.text, ";font-family:'Inter',sans-serif;min-height:100vh;overflow-anchor:none;scrollbar-width:thin;}\n    ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:").concat(C.bg, ";}::-webkit-scrollbar-thumb{background:").concat(C.border, ";border-radius:2px;}\n    input,select,textarea{background:").concat(isDark ? "#0d0d0d" : "#fff", ";color:").concat(C.text, ";border:1px solid ").concat(isDark ? "#333" : C.border, ";border-radius:5px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;width:100%;outline:none;transition:border-color .15s;}\n    input:focus,select:focus,textarea:focus{border-color:").concat(C.accentDim, ";box-shadow:0 0 0 2px ").concat(C.accentGlow, ";}\n    select option{background:").concat(isDark ? "#111" : "#fff", ";}\n    textarea{resize:vertical;}button{cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}\n    input[type=checkbox]{width:14px;height:14px;accent-color:").concat(C.accent, ";cursor:pointer;}\n    .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:").concat(C.textDim, ";font-weight:600;display:block;margin-bottom:6px;}\n    .card-hover{transition:box-shadow .15s,border-color .15s;}.card-hover:hover{box-shadow:0 0 0 1px ").concat(C.accentDim, " !important;border-color:").concat(C.accentDim, " !important;}\n    @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}\n    @keyframes tabIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}\n    .fade{animation:fadeUp .18s ease forwards;}\n    .tab-panel{animation:tabIn .18s ease forwards;}\n    .nav-tab:hover{background:rgba(128,128,128,0.1)!important}\n    @keyframes shimmer{0%{opacity:.6}50%{opacity:1}100%{opacity:.6}}\n    .skel{animation:shimmer 1.5s infinite}\n    .tab-panel>*{animation:tabIn .3s both}\n    .tab-panel>*:nth-child(1){animation-delay:0ms}.tab-panel>*:nth-child(2){animation-delay:40ms}.tab-panel>*:nth-child(3){animation-delay:80ms}.tab-panel>*:nth-child(4){animation-delay:120ms}.tab-panel>*:nth-child(5){animation-delay:160ms}.tab-panel>*:nth-child(6){animation-delay:200ms}.tab-panel>*:nth-child(7){animation-delay:240ms}.tab-panel>*:nth-child(8){animation-delay:280ms}.tab-panel>*:nth-child(9){animation-delay:320ms}.tab-panel>*:nth-child(10){animation-delay:360ms}\n    .stat-val{transition:transform .2s,color .2s;display:inline-block}\n  ");
+    return "\n    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}\n    body{background:".concat(C.bg, ";color:").concat(C.text, ";font-family:'Inter',sans-serif;min-height:100vh;overflow-anchor:none;scrollbar-width:thin;}\n    ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:").concat(C.bg, ";}::-webkit-scrollbar-thumb{background:").concat(C.border, ";border-radius:2px;}\n    input,select,textarea{background:").concat(isDark ? "#0d0d0d" : "#fff", ";color:").concat(C.text, ";border:1px solid ").concat(isDark ? "#333" : C.border, ";border-radius:5px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;width:100%;outline:none;transition:border-color .15s;}\n    input:focus,select:focus,textarea:focus{border-color:").concat(C.accentDim, ";box-shadow:0 0 0 2px ").concat(C.accentGlow, ";}\n    select option{background:").concat(isDark ? "#111" : "#fff", ";}\n    textarea{resize:vertical;}button{cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}\n    input[type=checkbox]{width:14px;height:14px;accent-color:").concat(C.accent, ";cursor:pointer;}\n    .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:").concat(C.textDim, ";font-weight:600;display:block;margin-bottom:6px;}\n    .card-hover{transition:box-shadow .15s,border-color .15s;}.card-hover:hover{box-shadow:0 0 0 1px ").concat(C.accentDim, " !important;border-color:").concat(C.accentDim, " !important;}\n    @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}\n    @keyframes tabIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}\n    .fade{animation:fadeUp .18s ease forwards;}\n    .tab-panel{animation:tabIn .18s ease forwards;}\n    .nav-tab:hover:not([data-active='true']){background:rgba(128,128,128,0.12)!important;border-radius:20px}\n    @keyframes shimmer{0%{opacity:.6}50%{opacity:1}100%{opacity:.6}}\n    .skel{animation:shimmer 1.5s infinite}\n    .tab-panel>*{animation:tabIn .3s both}\n    .tab-panel>*:nth-child(1){animation-delay:0ms}.tab-panel>*:nth-child(2){animation-delay:40ms}.tab-panel>*:nth-child(3){animation-delay:80ms}.tab-panel>*:nth-child(4){animation-delay:120ms}.tab-panel>*:nth-child(5){animation-delay:160ms}.tab-panel>*:nth-child(6){animation-delay:200ms}.tab-panel>*:nth-child(7){animation-delay:240ms}.tab-panel>*:nth-child(8){animation-delay:280ms}.tab-panel>*:nth-child(9){animation-delay:320ms}.tab-panel>*:nth-child(10){animation-delay:360ms}\n    .stat-val{transition:transform .2s,color .2s;display:inline-block}\n  ");
   }, [isDark]);
 
   // ── Shared UI (stable primitives now via ThemeCtx, defined outside) ──
@@ -7169,19 +7173,23 @@ function NVJournal() {
       type: "button",
       key: t,
       className: "nav-tab",
+      "data-active": tab === t ? "true" : undefined,
       onClick: function onClick() {
         return switchTab(t);
       },
       style: {
-        padding: "5px 14px",
-        border: tab === t ? "1px solid ".concat(C.border) : "1px solid transparent",
-        borderRadius: 6,
+        position: "relative",
+        padding: "6px 16px",
+        border: "none",
+        borderRadius: 20,
         fontSize: 11,
         letterSpacing: ".06em",
         fontWeight: tab === t ? 600 : 500,
-        background: tab === t ? C.surfaceHigh : "transparent",
-        color: tab === t ? C.accent : C.textMid,
-        boxShadow: tab === t ? (isDark ? "0 1px 3px rgba(0,0,0,0.4)" : "0 1px 3px rgba(0,0,0,0.1)") : "none"
+        background: tab === t ? C.accent : "transparent",
+        color: tab === t ? "#fff" : C.textMid,
+        boxShadow: tab === t ? (isDark ? "0 2px 8px rgba(0,0,0,0.3)" : "0 2px 8px rgba(0,0,0,0.12)") : "none",
+        transition: "all 0.15s ease",
+        cursor: "pointer"
       }
     }, t);
   })), /*#__PURE__*/React.createElement("div", {
@@ -7694,6 +7702,7 @@ function NVJournal() {
     label: "Total R",
     value: "".concat(metrics.totalR > 0 ? "+" : "").concat(metrics.totalR, "R"),
     color: metrics.totalR > 0 ? C.green : metrics.totalR < 0 ? C.red : C.text,
+    sub: "".concat(metrics.wins, "W \xB7 ").concat(metrics.losses, "L \xB7 ").concat(metrics.be, "BE"),
     size: "xl",
     hero: true,
     heroColor: metrics.totalR > 0 ? C.green : metrics.totalR < 0 ? C.red : C.border
@@ -7744,16 +7753,10 @@ function NVJournal() {
   }), /*#__PURE__*/React.createElement(SessionStatsPanel, {
     data: dashFiltered,
     isLive: dashView === "Live"
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 10
-    }
-  }, /*#__PURE__*/React.createElement(SessionPanel, {
+  }), /*#__PURE__*/React.createElement(SessionPanel, {
     data: dashFiltered,
     isLive: dashView === "Live"
-  })), /*#__PURE__*/React.createElement(GradePanel, {
+  }), /*#__PURE__*/React.createElement(GradePanel, {
     data: dashFiltered,
     isLive: dashView === "Live"
   }), /*#__PURE__*/React.createElement("div", {
@@ -9796,7 +9799,7 @@ function NVJournal() {
       fontFamily: F_MONO,
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v61")), /*#__PURE__*/React.createElement("span", {
+  }, "NV JOURNAL - v62")), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 9,
       color: C.textDim,
