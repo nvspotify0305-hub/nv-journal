@@ -931,6 +931,152 @@ function NVLogo(_ref) {
   }));
 }
 
+// ─── LOCK SCREEN ─────────────────────────────────────────────────────────────
+var NV_LOCK_KEY = "nv_unlocked";
+var NV_LOCK_HASH = "8a384029";
+function nvHash(s) {
+  var h = 0;
+  for (var i = 0; i < s.length; i++) {
+    h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+function LockScreen(_ref_lock) {
+  var onUnlock = _ref_lock.onUnlock;
+  var savedDark = (function() { try { return JSON.parse(localStorage.getItem("nv_theme")); } catch(e) { return false; } })();
+  var _useState_lk = useState(savedDark),
+    _useState_lk2 = _slicedToArray(_useState_lk, 2),
+    isDark = _useState_lk2[0];
+  var _useState_lk3 = useState(""),
+    _useState_lk4 = _slicedToArray(_useState_lk3, 2),
+    pw = _useState_lk4[0],
+    setPw = _useState_lk4[1];
+  var _useState_lk5 = useState(false),
+    _useState_lk6 = _slicedToArray(_useState_lk5, 2),
+    error = _useState_lk6[0],
+    setError = _useState_lk6[1];
+  var _useState_lk7 = useState(false),
+    _useState_lk8 = _slicedToArray(_useState_lk7, 2),
+    shaking = _useState_lk8[0],
+    setShaking = _useState_lk8[1];
+  var inputRef = React.useRef(null);
+  var C = isDark ? DARK : LIGHT;
+  var ink = isDark ? "#e0e0e0" : "#1a1a1a";
+  var gridColor = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)";
+  var vignetteColor = isDark ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.06)";
+  var lockBg = isDark ? "#05070A" : "#fafafa";
+  React.useEffect(function() { if (inputRef.current) inputRef.current.focus(); }, []);
+  function tryUnlock() {
+    if (nvHash(pw) === NV_LOCK_HASH) {
+      try { localStorage.setItem(NV_LOCK_KEY, "1"); } catch(e) {}
+      onUnlock();
+    } else {
+      setError(true);
+      setShaking(true);
+      setTimeout(function() { setShaking(false); }, 400);
+      setTimeout(function() { setError(false); }, 2000);
+    }
+  }
+  var gridCSS = "linear-gradient(" + gridColor + " 1px, transparent 1px), linear-gradient(90deg, " + gridColor + " 1px, transparent 1px)";
+  return React.createElement("div", {
+    style: {
+      position: "fixed", inset: 0, zIndex: 9999,
+      background: lockBg,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontFamily: "'Inter', sans-serif"
+    }
+  },
+    // Grid background
+    React.createElement("div", {
+      style: {
+        position: "absolute", inset: 0,
+        backgroundImage: gridCSS,
+        backgroundSize: "40px 40px",
+        pointerEvents: "none"
+      }
+    }),
+    // Vignette
+    React.createElement("div", {
+      style: {
+        position: "absolute", inset: 0,
+        background: "radial-gradient(ellipse at center, transparent 40%, " + vignetteColor + " 100%)",
+        pointerEvents: "none"
+      }
+    }),
+    // Content
+    React.createElement("div", {
+      style: {
+        position: "relative", zIndex: 1,
+        display: "flex", flexDirection: "column", alignItems: "center",
+        width: 280
+      }
+    },
+      React.createElement(NVLogo, { size: 68, isDark: isDark }),
+      React.createElement("div", {
+        style: {
+          fontFamily: "'Bebas Neue', sans-serif",
+          fontSize: 28, letterSpacing: "0.14em",
+          color: ink, marginTop: 14, marginBottom: 36
+        }
+      }, "JOURNAL"),
+      React.createElement("input", {
+        ref: inputRef,
+        type: "password",
+        placeholder: "Enter password",
+        value: pw,
+        onChange: function(e) { setPw(e.target.value); },
+        onKeyDown: function(e) { if (e.key === "Enter") tryUnlock(); },
+        style: {
+          width: "100%",
+          background: isDark ? "rgba(255,255,255,0.04)" : "#fff",
+          color: ink,
+          border: "1px solid " + (error ? "#FF4C4C" : isDark ? "#2a2a2a" : "#ddd"),
+          borderRadius: 6, padding: "12px 14px",
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 14, letterSpacing: "0.2em",
+          outline: "none", textAlign: "center",
+          marginBottom: 14,
+          transition: "border-color 0.2s, box-shadow 0.2s",
+          boxShadow: error ? "0 0 0 2px rgba(255,76,76,0.15)" : "none",
+          animation: shaking ? "shake 0.4s ease" : "none"
+        }
+      }),
+      React.createElement("button", {
+        onClick: tryUnlock,
+        style: {
+          width: "100%", padding: "12px 0",
+          background: error ? "transparent" : (isDark ? "transparent" : "#1a1a1a"),
+          color: error ? "#FF4C4C" : (isDark ? ink : "#fafafa"),
+          border: "1.5px solid " + (error ? "#FF4C4C" : (isDark ? "#333" : "#1a1a1a")),
+          borderRadius: 6,
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 11, fontWeight: 600,
+          letterSpacing: "0.18em", textTransform: "uppercase",
+          cursor: "pointer",
+          transition: "all 0.2s"
+        }
+      }, "UNLOCK"),
+      React.createElement("div", {
+        style: {
+          fontSize: 10, color: "#FF4C4C",
+          fontFamily: "'JetBrains Mono', monospace",
+          marginTop: 12, height: 14,
+          opacity: error ? 1 : 0,
+          transition: "opacity 0.2s"
+        }
+      }, "Invalid password"),
+      React.createElement("div", {
+        style: {
+          marginTop: 48,
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 9, letterSpacing: "0.1em",
+          color: isDark ? "#333" : "#ccc"
+        }
+      }, "v63")
+    )
+  );
+}
+
 // ─── GRADE METER ──────────────────────────────────────────────────────────────
 function GradeMeter(_ref2) {
   var gr = _ref2.gr,
@@ -4019,6 +4165,12 @@ function EmptyState(props) {
 }
 function NVJournal() {
   var _TZ_MAP$tz;
+  var _useState_unlock = useState(function() {
+    try { return localStorage.getItem(NV_LOCK_KEY) === "1"; } catch(e) { return false; }
+  }),
+    _useState_unlock2 = _slicedToArray(_useState_unlock, 2),
+    unlocked = _useState_unlock2[0],
+    setUnlocked = _useState_unlock2[1];
   var _useStorage = useStorage("nv_theme", false),
     _useStorage2 = _slicedToArray(_useStorage, 2),
     isDark = _useStorage2[0],
@@ -7161,6 +7313,10 @@ function NVJournal() {
       }
     }, "\u2715"));
   };
+  if (!unlocked) return React.createElement(React.Fragment, null,
+    React.createElement("style", null, "@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}"),
+    React.createElement(LockScreen, { onUnlock: function() { setUnlocked(true); } })
+  );
   return /*#__PURE__*/React.createElement(ThemeCtx.Provider, {
     value: {
       C: C,
@@ -7397,6 +7553,21 @@ function NVJournal() {
       color: C.textDim
     }
   }, "Danger zone:"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: function onClick() {
+      try { localStorage.removeItem(NV_LOCK_KEY); } catch(e) {}
+      setUnlocked(false);
+      setShowSettings(false);
+    },
+    style: {
+      padding: "4px 14px",
+      background: "transparent",
+      border: "1px solid ".concat(C.border),
+      borderRadius: 6,
+      color: C.textMid,
+      fontSize: 11
+    }
+  }, "\uD83D\uDD12 Lock"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: function onClick() {
       setShowSettings(false);
