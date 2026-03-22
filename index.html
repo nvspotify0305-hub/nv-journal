@@ -3227,6 +3227,7 @@ function Card(_ref20) {
   var _useTheme = useTheme(),
     C = _useTheme.C;
   return /*#__PURE__*/React.createElement("div", {
+    className: "card-hover",
     style: _objectSpread({
       background: C.surface,
       border: "1px solid ".concat(C.border),
@@ -3416,6 +3417,36 @@ function Tog(_ref26) {
     }
   }, label));
 }
+function AnimatedNumber(_ref_an) {
+  var value = _ref_an.value, duration = _ref_an.duration;
+  var dur = duration || 600;
+  var ref = React.useRef(null);
+  var prev = React.useRef(0);
+  React.useEffect(function () {
+    var el = ref.current;
+    if (!el) return;
+    var raw = String(value);
+    var match = raw.match(/([+-]?)(\d+\.?\d*)/);
+    if (!match) { el.textContent = raw; return; }
+    var prefix = raw.slice(0, raw.indexOf(match[0]));
+    var suffix = raw.slice(raw.indexOf(match[0]) + match[0].length);
+    var sign = match[1];
+    var target = parseFloat(match[2]);
+    var decimals = match[2].indexOf(".") >= 0 ? match[2].split(".")[1].length : 0;
+    var start = prev.current;
+    prev.current = target;
+    var t0 = performance.now();
+    function step(now) {
+      var p = Math.min((now - t0) / dur, 1);
+      var ease = 1 - Math.pow(1 - p, 3);
+      var cur = start + (target - start) * ease;
+      el.textContent = prefix + sign + cur.toFixed(decimals) + suffix;
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }, [value]);
+  return React.createElement("span", { ref: ref }, value);
+}
 function Stat(_ref27) {
   var label = _ref27.label,
     value = _ref27.value,
@@ -3447,7 +3478,7 @@ function Stat(_ref27) {
       marginTop: hero ? 6 : 2,
       fontWeight: hero ? 700 : undefined
     }
-  }, value), sub && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(AnimatedNumber, { value: value, duration: hero ? 800 : 500 })), sub && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
       color: C.textDim,
@@ -4667,7 +4698,7 @@ function NVJournal() {
     });
   }
   var CSS = React.useMemo(function () {
-    return "\n    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}\n    body{background:".concat(C.bg, ";color:").concat(C.text, ";font-family:'Inter',sans-serif;min-height:100vh;overflow-anchor:none;scrollbar-width:thin;}\n    ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:").concat(C.bg, ";}::-webkit-scrollbar-thumb{background:").concat(C.border, ";border-radius:2px;}\n    input,select,textarea{background:").concat(isDark ? "#0d0d0d" : "#fff", ";color:").concat(C.text, ";border:1px solid ").concat(isDark ? "#333" : C.border, ";border-radius:5px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;width:100%;outline:none;transition:border-color .15s;}\n    input:focus,select:focus,textarea:focus{border-color:").concat(C.accentDim, ";box-shadow:0 0 0 2px ").concat(C.accentGlow, ";}\n    select option{background:").concat(isDark ? "#111" : "#fff", ";}\n    textarea{resize:vertical;}button{cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}\n    input[type=checkbox]{width:14px;height:14px;accent-color:").concat(C.accent, ";cursor:pointer;}\n    .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:").concat(C.textDim, ";font-weight:600;display:block;margin-bottom:6px;}\n    .card-hover{transition:box-shadow .15s,border-color .15s;}.card-hover:hover{box-shadow:0 0 0 1px ").concat(C.accentDim, " !important;border-color:").concat(C.accentDim, " !important;}\n    @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}\n    @keyframes tabIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}\n    .fade{animation:fadeUp .18s ease forwards;}\n    .tab-panel{animation:tabIn .18s ease forwards;}\n    .nav-tab:hover:not([data-active='true']){background:rgba(128,128,128,0.12)!important;border-radius:20px}\n    @keyframes shimmer{0%{opacity:.6}50%{opacity:1}100%{opacity:.6}}\n    .skel{animation:shimmer 1.5s infinite}\n    .tab-panel>*{animation:tabIn .3s both}\n    .tab-panel>*:nth-child(1){animation-delay:0ms}.tab-panel>*:nth-child(2){animation-delay:40ms}.tab-panel>*:nth-child(3){animation-delay:80ms}.tab-panel>*:nth-child(4){animation-delay:120ms}.tab-panel>*:nth-child(5){animation-delay:160ms}.tab-panel>*:nth-child(6){animation-delay:200ms}.tab-panel>*:nth-child(7){animation-delay:240ms}.tab-panel>*:nth-child(8){animation-delay:280ms}.tab-panel>*:nth-child(9){animation-delay:320ms}.tab-panel>*:nth-child(10){animation-delay:360ms}\n    .stat-val{transition:transform .2s,color .2s;display:inline-block}\n  ");
+    return "\n    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}\n    body{background:".concat(C.bg, ";color:").concat(C.text, ";font-family:'Inter',sans-serif;min-height:100vh;overflow-anchor:none;scrollbar-width:thin;}\n    ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:").concat(C.bg, ";}::-webkit-scrollbar-thumb{background:").concat(C.border, ";border-radius:2px;}\n    input,select,textarea{background:").concat(isDark ? "#0d0d0d" : "#fff", ";color:").concat(C.text, ";border:1px solid ").concat(isDark ? "#333" : C.border, ";border-radius:5px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;width:100%;outline:none;transition:border-color .15s;}\n    input:focus,select:focus,textarea:focus{border-color:").concat(C.accentDim, ";box-shadow:0 0 0 2px ").concat(C.accentGlow, ";}\n    select option{background:").concat(isDark ? "#111" : "#fff", ";}\n    textarea{resize:vertical;}button{cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}\n    input[type=checkbox]{width:14px;height:14px;accent-color:").concat(C.accent, ";cursor:pointer;}\n    .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:").concat(C.textDim, ";font-weight:600;display:block;margin-bottom:6px;}\n    .card-hover{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;}.card-hover:hover{transform:translateY(-2px);box-shadow:0 8px 24px ").concat(isDark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.1)", " !important;border-color:").concat(C.accentDim, " !important;}\n    @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}\n    @keyframes tabIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}\n    .fade{animation:fadeUp .18s ease forwards;}\n    .tab-panel{animation:tabIn .18s ease forwards;}\n    .nav-tab:hover:not([data-active='true']){background:rgba(128,128,128,0.12)!important;border-radius:20px}\n    @keyframes shimmer{0%{opacity:.6}50%{opacity:1}100%{opacity:.6}}\n    .skel{animation:shimmer 1.5s infinite}\n    .tab-panel>*{animation:tabIn .3s both}\n    .tab-panel>*:nth-child(1){animation-delay:0ms}.tab-panel>*:nth-child(2){animation-delay:40ms}.tab-panel>*:nth-child(3){animation-delay:80ms}.tab-panel>*:nth-child(4){animation-delay:120ms}.tab-panel>*:nth-child(5){animation-delay:160ms}.tab-panel>*:nth-child(6){animation-delay:200ms}.tab-panel>*:nth-child(7){animation-delay:240ms}.tab-panel>*:nth-child(8){animation-delay:280ms}.tab-panel>*:nth-child(9){animation-delay:320ms}.tab-panel>*:nth-child(10){animation-delay:360ms}\n    .stat-val{transition:transform .2s,color .2s;display:inline-block}\n  ");
   }, [isDark]);
 
   // ── Shared UI (stable primitives now via ThemeCtx, defined outside) ──
@@ -7132,7 +7163,7 @@ function NVJournal() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      borderBottom: "1px solid ".concat(C.border),
+      borderBottom: "1px solid ".concat(isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"),
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
@@ -7140,9 +7171,11 @@ function NVJournal() {
       height: 52,
       position: "sticky",
       top: 0,
-      background: C.surface,
+      background: isDark ? "rgba(17,17,17,0.72)" : "rgba(255,255,255,0.72)",
+      backdropFilter: "blur(14px)",
+      WebkitBackdropFilter: "blur(14px)",
       zIndex: 150,
-      boxShadow: C.shadow
+      boxShadow: isDark ? "0 1px 12px rgba(0,0,0,0.4)" : "0 1px 12px rgba(0,0,0,0.06)"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -9799,7 +9832,7 @@ function NVJournal() {
       fontFamily: F_MONO,
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v62")), /*#__PURE__*/React.createElement("span", {
+  }, "NV JOURNAL - v63")), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 9,
       color: C.textDim,
