@@ -3999,10 +3999,22 @@ function DashboardSkeleton() {
   );
 }
 function EmptyState(props) {
+  var _useThemeES = useTheme(), C = _useThemeES.C;
+  var icons = {
+    trades: React.createElement("svg", { width: 36, height: 36, viewBox: "0 0 24 24", fill: "none" },
+      React.createElement("path", { d: "M3 3v18h18", stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
+      React.createElement("path", { d: "M7 14l4-4 3 3 6-6", stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round" })),
+    days: React.createElement("svg", { width: 36, height: 36, viewBox: "0 0 24 24", fill: "none" },
+      React.createElement("rect", { x: 3, y: 4, width: 18, height: 18, rx: 2, stroke: C.textDim, strokeWidth: 1.5 }),
+      React.createElement("line", { x1: 16, y1: 2, x2: 16, y2: 6, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
+      React.createElement("line", { x1: 8, y1: 2, x2: 8, y2: 6, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
+      React.createElement("line", { x1: 3, y1: 10, x2: 21, y2: 10, stroke: C.textDim, strokeWidth: 1.5 }))
+  };
+  var svgIcon = props.svgKey && icons[props.svgKey];
   return React.createElement("div", { style: { textAlign: "center", padding: "48px 24px" } },
-    React.createElement("div", { style: { fontSize: 32, marginBottom: 8 } }, props.icon),
-    React.createElement("div", { style: { fontSize: 14, fontWeight: 600, marginBottom: 4, color: "#888" } }, props.title),
-    props.hint && React.createElement("div", { style: { fontSize: 11, opacity: 0.6, color: "#aaa" } }, props.hint)
+    React.createElement("div", { style: { marginBottom: 10, opacity: 0.3 } }, svgIcon || React.createElement("span", { style: { fontSize: 32 } }, props.icon)),
+    React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 4, color: C.textDim } }, props.title),
+    props.hint && React.createElement("div", { style: { fontSize: 11, opacity: 0.5, color: C.textDim } }, props.hint)
   );
 }
 function NVJournal() {
@@ -4696,7 +4708,7 @@ function NVJournal() {
     });
   }
   var CSS = React.useMemo(function () {
-    return "\n    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}\n    body{background:".concat(C.bg, ";color:").concat(C.text, ";font-family:'Inter',sans-serif;min-height:100vh;overflow-anchor:none;scrollbar-width:thin;}\n    ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:").concat(C.bg, ";}::-webkit-scrollbar-thumb{background:").concat(C.border, ";border-radius:2px;}\n    input,select,textarea{background:").concat(isDark ? "#0d0d0d" : "#fff", ";color:").concat(C.text, ";border:1px solid ").concat(isDark ? "#333" : C.border, ";border-radius:5px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;width:100%;outline:none;transition:border-color .15s;}\n    input:focus,select:focus,textarea:focus{border-color:").concat(C.accentDim, ";box-shadow:0 0 0 2px ").concat(C.accentGlow, ";}\n    select option{background:").concat(isDark ? "#111" : "#fff", ";}\n    textarea{resize:vertical;}button{cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}\n    input[type=checkbox]{width:14px;height:14px;accent-color:").concat(C.accent, ";cursor:pointer;}\n    .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:").concat(C.textDim, ";font-weight:600;display:block;margin-bottom:6px;}\n    .card-hover{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;}.card-hover:hover{transform:translateY(-2px);box-shadow:0 8px 24px ").concat(isDark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.1)", " !important;border-color:").concat(C.accentDim, " !important;}\n    @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}\n    @keyframes tabIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}\n    .fade{animation:fadeUp .18s ease forwards;}\n    .tab-panel{animation:tabIn .18s ease forwards;}\n    .nav-tab:hover:not([data-active='true']){background:rgba(128,128,128,0.12)!important;border-radius:20px}\n    @keyframes shimmer{0%{opacity:.6}50%{opacity:1}100%{opacity:.6}}\n    .skel{animation:shimmer 1.5s infinite}\n    .tab-panel>*{animation:tabIn .3s both}\n    .tab-panel>*:nth-child(1){animation-delay:0ms}.tab-panel>*:nth-child(2){animation-delay:40ms}.tab-panel>*:nth-child(3){animation-delay:80ms}.tab-panel>*:nth-child(4){animation-delay:120ms}.tab-panel>*:nth-child(5){animation-delay:160ms}.tab-panel>*:nth-child(6){animation-delay:200ms}.tab-panel>*:nth-child(7){animation-delay:240ms}.tab-panel>*:nth-child(8){animation-delay:280ms}.tab-panel>*:nth-child(9){animation-delay:320ms}.tab-panel>*:nth-child(10){animation-delay:360ms}\n    .stat-val{transition:transform .2s,color .2s;display:inline-block}\n  ");
+    return "\n    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}\n    body{background:".concat(C.bg, ";color:").concat(C.text, ";font-family:'Inter',sans-serif;min-height:100vh;overflow-anchor:none;scrollbar-width:thin;}\n    ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:").concat(C.bg, ";}::-webkit-scrollbar-thumb{background:").concat(C.border, ";border-radius:2px;}\n    input,select,textarea{background:").concat(isDark ? "#0d0d0d" : "#fff", ";color:").concat(C.text, ";border:1px solid ").concat(isDark ? "#333" : C.border, ";border-radius:5px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;width:100%;outline:none;transition:border-color .15s;}\n    input:focus,select:focus,textarea:focus{border-color:").concat(C.accentDim, ";box-shadow:0 0 0 2px ").concat(C.accentGlow, ";}\n    select option{background:").concat(isDark ? "#111" : "#fff", ";}\n    textarea{resize:vertical;}button{cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}\n    input[type=checkbox]{width:14px;height:14px;accent-color:").concat(C.accent, ";cursor:pointer;}\n    .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:").concat(C.textDim, ";font-weight:600;display:block;margin-bottom:3px;}\n    .card-hover{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;}.card-hover:hover{transform:translateY(-2px);box-shadow:0 8px 24px ").concat(isDark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.1)", " !important;border-color:").concat(C.accentDim, " !important;}\n    @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}\n    @keyframes tabIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}\n    .fade{animation:fadeUp .18s ease forwards;}\n    .tab-panel{animation:tabIn .18s ease forwards;}\n    .nav-tab:hover:not([data-active='true']){background:rgba(128,128,128,0.12)!important;border-radius:20px}\n    @keyframes shimmer{0%{opacity:.6}50%{opacity:1}100%{opacity:.6}}\n    .skel{animation:shimmer 1.5s infinite}\n    .tab-panel>*{animation:tabIn .3s both}\n    .tab-panel>*:nth-child(1){animation-delay:0ms}.tab-panel>*:nth-child(2){animation-delay:40ms}.tab-panel>*:nth-child(3){animation-delay:80ms}.tab-panel>*:nth-child(4){animation-delay:120ms}.tab-panel>*:nth-child(5){animation-delay:160ms}.tab-panel>*:nth-child(6){animation-delay:200ms}.tab-panel>*:nth-child(7){animation-delay:240ms}.tab-panel>*:nth-child(8){animation-delay:280ms}.tab-panel>*:nth-child(9){animation-delay:320ms}.tab-panel>*:nth-child(10){animation-delay:360ms}\n    .stat-val{transition:transform .2s,color .2s;display:inline-block}\n  ");
   }, [isDark]);
 
   // ── Shared UI (stable primitives now via ThemeCtx, defined outside) ──
@@ -7169,9 +7181,7 @@ function NVJournal() {
       height: 52,
       position: "sticky",
       top: 0,
-      background: isDark ? "rgba(17,17,17,0.72)" : "rgba(255,255,255,0.72)",
-      backdropFilter: "blur(14px)",
-      WebkitBackdropFilter: "blur(14px)",
+      background: C.bg,
       zIndex: 150,
       boxShadow: isDark ? "0 1px 12px rgba(0,0,0,0.4)" : "0 1px 12px rgba(0,0,0,0.06)"
     }
@@ -8454,7 +8464,7 @@ function NVJournal() {
     /*#__PURE__*/React.createElement("line", { x1: 8, y1: 9, x2: 16, y2: 9, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
     /*#__PURE__*/React.createElement("line", { x1: 8, y1: 13, x2: 14, y2: 13, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
     /*#__PURE__*/React.createElement("line", { x1: 8, y1: 17, x2: 11, y2: 17, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" })
-  ), /*#__PURE__*/React.createElement(EmptyState, { icon: "\uD83D\uDCCB", title: "No trades in this period", hint: "Adjust the period filter or log a new setup" }))), tab === "Review" && /*#__PURE__*/React.createElement("div", {
+  ), /*#__PURE__*/React.createElement(EmptyState, { svgKey: "trades", title: "No trades in this period", hint: "Adjust the period filter or log a new setup" }))), tab === "Review" && /*#__PURE__*/React.createElement("div", {
     className: "tab-panel",
     style: {
       display: "flex",
@@ -8696,7 +8706,7 @@ function NVJournal() {
     /*#__PURE__*/React.createElement("line", { x1: 3, y1: 9, x2: 21, y2: 9, stroke: C.textDim, strokeWidth: 1.5 }),
     /*#__PURE__*/React.createElement("line", { x1: 8, y1: 2, x2: 8, y2: 6, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
     /*#__PURE__*/React.createElement("line", { x1: 16, y1: 2, x2: 16, y2: 6, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" })
-  ), /*#__PURE__*/React.createElement(EmptyState, { icon: "\uD83D\uDCC5", title: "No days logged yet", hint: "Log your daily bias to track accuracy over time" })))), tab === "Log Trade" && /*#__PURE__*/React.createElement("div", {
+  ), /*#__PURE__*/React.createElement(EmptyState, { svgKey: "days", title: "No days logged yet", hint: "Log your daily bias to track accuracy over time" })))), tab === "Log Trade" && /*#__PURE__*/React.createElement("div", {
     className: "tab-panel",
     style: {
       position: "relative",
