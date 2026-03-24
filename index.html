@@ -312,6 +312,17 @@ var OUTCOMES = ["Win", "Loss", "BE", "NT"];
 var NO_TRADE_R = ["Lack of RR", "Poor Entry Timing", "News", "Choppy PA", "Opposing Key Level", "No Setup", "Missed", "Non-Executable C5+", "Other"];
 var TABS = ["Dashboard", "Trades", "Review", "Days", "Log Trade", "Prop Firms", "Calculator", "Crypto"];
 var MIN_SAMPLE = 3;
+// ─── PROP FIRM PRESETS ────────────────────────────────────────────────────────
+var PROP_FIRM_PRESETS = {
+  "Topstep 50k":    { initial_balance:50000, profit_target_pct:6,  daily_loss_pct:2, max_dd_pct:4,  dd_type:"trailing_eod",   consistency_rule:true,  min_trading_days:0 },
+  "FundedNext 10k": { initial_balance:10000, profit_target_pct:10, daily_loss_pct:5, max_dd_pct:10, dd_type:"scaling",         consistency_rule:false, min_trading_days:5 },
+  "FTMO 10k":       { initial_balance:10000, profit_target_pct:10, daily_loss_pct:5, max_dd_pct:10, dd_type:"static",          consistency_rule:false, min_trading_days:4 },
+  "Apex 50k":       { initial_balance:50000, profit_target_pct:6,  daily_loss_pct:0, max_dd_pct:5,  dd_type:"trailing_equity", consistency_rule:false, min_trading_days:0 },
+  "Custom":         { initial_balance:50000, profit_target_pct:6,  daily_loss_pct:2, max_dd_pct:4,  dd_type:"trailing_eod",    consistency_rule:false, min_trading_days:0 }
+};
+var PROP_PRESET_NAMES = ["Topstep 50k","FundedNext 10k","FTMO 10k","Apex 50k","Custom"];
+var PROP_DD_LABELS = { "trailing_eod":"Trailing EOD","static":"Static Floor","trailing_equity":"Trailing Equity","scaling":"Scaling" };
+var PROP_PHASES = ["Evaluation","Phase 2","Funded","Blown","Passed"];
 
 // ── Unified confluence model v4 ──────────────────────────────────────────────
 // Sweeps / SMT: 4pts each (major signals)
@@ -3683,6 +3694,432 @@ function Toggle3(_ref_t3) {
         }
       }, opt);
     })
+  );
+}
+
+// ─── PROP FIRM TRACKER ────────────────────────────────────────────────────────
+function calcPropMetrics(acct) {
+  var pnlArr = acct.daily_pnl || [];
+  var initialBal = acct.initial_balance || 50000;
+  var profitTargetDollar = initialBal * ((acct.profit_target_pct || 6) / 100);
+  var dailyLossLimit = initialBal * ((acct.daily_loss_pct || 0) / 100);
+  var maxDdDollar = initialBal * ((acct.max_dd_pct || 4) / 100);
+  var ddType = acct.dd_type || "trailing_eod";
+  var runningBal = initialBal;
+  var hwm = initialBal;
+  var floor = initialBal - maxDdDollar;
+  pnlArr.forEach(function(entry) {
+    runningBal += (entry.pnl || 0);
+    if (runningBal > hwm) hwm = runningBal;
+    if (ddType === "trailing_eod" || ddType === "trailing_equity") {
+      floor = hwm - maxDdDollar;
+    } else if (ddType === "scaling") {
+      var sf = runningBal - maxDdDollar;
+      floor = sf < (initialBal - maxDdDollar) ? (initialBal - maxDdDollar) : sf;
+    }
+  });
+  var cumPnl = runningBal - initialBal;
+  var currentDd = hwm - runningBal; if (currentDd < 0) currentDd = 0;
+  var todayStr = today();
+  var todayEntry = null;
+  for (var i = 0; i < pnlArr.length; i++) { if (pnlArr[i].date === todayStr) { todayEntry = pnlArr[i]; break; } }
+  var todayPnl = todayEntry ? (todayEntry.pnl || 0) : 0;
+  var bestDay = 0;
+  for (var j = 0; j < pnlArr.length; j++) { if ((pnlArr[j].pnl || 0) > bestDay) bestDay = pnlArr[j].pnl || 0; }
+  var profitPct = profitTargetDollar > 0 ? (cumPnl / profitTargetDollar) * 100 : 0;
+  if (profitPct > 100) profitPct = 100; if (profitPct < 0) profitPct = 0;
+  var dailyLossPct = (dailyLossLimit > 0 && todayPnl < 0) ? (Math.abs(todayPnl) / dailyLossLimit) * 100 : 0;
+  if (dailyLossPct > 100) dailyLossPct = 100;
+  var ddPct = maxDdDollar > 0 ? (currentDd / maxDdDollar) * 100 : 0;
+  if (ddPct > 100) ddPct = 100;
+  var blown = runningBal <= floor || (dailyLossLimit > 0 && todayPnl <= -dailyLossLimit);
+  var consistencyOk = !acct.consistency_rule || bestDay <= profitTargetDollar * 0.5;
+  var minDaysOk = !acct.min_trading_days || pnlArr.length >= acct.min_trading_days;
+  var targetHit = cumPnl >= profitTargetDollar && minDaysOk && consistencyOk;
+  return {
+    cumPnl: cumPnl, currentBalance: runningBal, hwm: hwm, floor: floor,
+    currentDd: currentDd, profitTargetDollar: profitTargetDollar,
+    dailyLossLimit: dailyLossLimit, maxDdDollar: maxDdDollar,
+    todayPnl: todayPnl, tradingDays: pnlArr.length, bestDay: bestDay,
+    profitPct: profitPct, dailyLossPct: dailyLossPct, ddPct: ddPct,
+    blown: blown, consistencyOk: consistencyOk, targetHit: targetHit, minDaysOk: minDaysOk
+  };
+}
+function PropProgressBar(_ref_ppb) {
+  var pct = _ref_ppb.pct, color = _ref_ppb.color, C = _ref_ppb.C;
+  var clamped = pct < 0 ? 0 : pct > 100 ? 100 : pct;
+  return /*#__PURE__*/React.createElement("div", {
+    style: { background: C.border, borderRadius: 3, height: 4, width: "100%", marginTop: 8, overflow: "hidden" }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { width: clamped + "%", height: "100%", background: color, borderRadius: 3, transition: "width .6s ease" }
+  }));
+}
+function PropFirmTracker(_ref_pft) {
+  var C = _ref_pft.C, isDark = _ref_pft.isDark;
+  var _usA = useState(function() {
+    try { var s = localStorage.getItem("nv_propfirms_v1"); return s ? JSON.parse(s) : []; }
+    catch(e) { return []; }
+  }), _usA2 = _slicedToArray(_usA, 2), accounts = _usA2[0], setAccounts = _usA2[1];
+  var _usB = useState(null), _usB2 = _slicedToArray(_usB, 2), activeId = _usB2[0], setActiveId = _usB2[1];
+  var _usC = useState(false), _usC2 = _slicedToArray(_usC, 2), addMode = _usC2[0], setAddMode = _usC2[1];
+  var _usD = useState(false), _usD2 = _slicedToArray(_usD, 2), settingsOpen = _usD2[0], setSettingsOpen = _usD2[1];
+  var _usE = useState(false), _usE2 = _slicedToArray(_usE, 2), addPnlMode = _usE2[0], setAddPnlMode = _usE2[1];
+  var _usF = useState(null), _usF2 = _slicedToArray(_usF, 2), editPnlId = _usF2[0], setEditPnlId = _usF2[1];
+  var _usG = useState(null), _usG2 = _slicedToArray(_usG, 2), toast = _usG2[0], setToast = _usG2[1];
+  var _usH = useState(false), _usH2 = _slicedToArray(_usH, 2), rulesOpen = _usH2[0], setRulesOpen = _usH2[1];
+  var _usI = useState("Topstep 50k"), _usI2 = _slicedToArray(_usI, 2), newFirm = _usI2[0], setNewFirm = _usI2[1];
+  var _usJ = useState(""), _usJ2 = _slicedToArray(_usJ, 2), newName = _usJ2[0], setNewName = _usJ2[1];
+  var _usK = useState(today()), _usK2 = _slicedToArray(_usK, 2), pnlDate = _usK2[0], setPnlDate = _usK2[1];
+  var _usL = useState(""), _usL2 = _slicedToArray(_usL, 2), pnlAmt = _usL2[0], setPnlAmt = _usL2[1];
+  var _usM = useState(""), _usM2 = _slicedToArray(_usM, 2), pnlR = _usM2[0], setPnlR = _usM2[1];
+  var _usN = useState(""), _usN2 = _slicedToArray(_usN, 2), pnlNote = _usN2[0], setPnlNote = _usN2[1];
+  var _usO = useState(null), _usO2 = _slicedToArray(_usO, 2), confirmDelAcct = _usO2[0], setConfirmDelAcct = _usO2[1];
+  // Derive active account
+  var activeAcct = null;
+  for (var _ai = 0; _ai < accounts.length; _ai++) { if (accounts[_ai].id === activeId) { activeAcct = accounts[_ai]; break; } }
+  if (!activeAcct && accounts.length > 0) activeAcct = accounts[0];
+  var metrics = activeAcct ? calcPropMetrics(activeAcct) : null;
+  function meterColor(pct) { return pct >= 75 ? C.red : pct >= 50 ? C.yellow : C.green; }
+  // Set first account active
+  useEffect(function() {
+    if (accounts.length > 0 && !activeId) setActiveId(accounts[0].id);
+  }, [accounts, activeId]);
+  // Persist localStorage
+  useEffect(function() {
+    try { localStorage.setItem("nv_propfirms_v1", JSON.stringify(accounts)); } catch(e) {}
+  }, [accounts]);
+  // Load from Supabase
+  useEffect(function() {
+    _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee_pft() {
+      var data;
+      return _regenerator().w(function(_ctx) {
+        while (1) switch (_ctx.n) {
+          case 0: _ctx.n = 1; return sbLoad("prop_firms");
+          case 1: data = _ctx.v; if (data && data.length > 0) setAccounts(data);
+          case 2: return _ctx.a(2);
+        }
+      }, _callee_pft);
+    }))();
+  }, []);
+  // Debounced Supabase save
+  useEffect(function() {
+    var t = setTimeout(function() { accounts.forEach(function(a) { return sbSave("prop_firms", a); }); }, 800);
+    return function() { return clearTimeout(t); };
+  }, [accounts]);
+  function showToast(msg, type) {
+    setToast({ msg: msg, type: type || "success" });
+    setTimeout(function() { setToast(null); }, 2500);
+  }
+  function mkId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function addAccount() {
+    var preset = PROP_FIRM_PRESETS[newFirm] || PROP_FIRM_PRESETS["Custom"];
+    var acct = _objectSpread(_objectSpread({ id: mkId(), name: newName || newFirm, firm: newFirm, start_date: today(), phase: "Evaluation", status: "active", daily_pnl: [] }, preset), {});
+    setAccounts(function(prev) { return _toConsumableArray(prev).concat([acct]); });
+    setActiveId(acct.id);
+    setAddMode(false); setNewName(""); setNewFirm("Topstep 50k");
+    showToast("Account added");
+  }
+  function deleteAccount(id) {
+    var remaining = accounts.filter(function(a) { return a.id !== id; });
+    setAccounts(remaining);
+    sbDel("prop_firms", id);
+    if (activeId === id) setActiveId(remaining.length > 0 ? remaining[0].id : null);
+    setConfirmDelAcct(null); showToast("Account deleted");
+  }
+  function updateAccount(id, updates) {
+    setAccounts(function(prev) { return prev.map(function(a) { return a.id === id ? _objectSpread(_objectSpread({}, a), updates) : a; }); });
+  }
+  function resetPnlForm() {
+    setPnlDate(today()); setPnlAmt(""); setPnlR(""); setPnlNote("");
+    setEditPnlId(null); setAddPnlMode(false);
+  }
+  function savePnlEntry() {
+    if (!activeAcct || !pnlAmt) return;
+    var amt = parseFloat(pnlAmt); if (isNaN(amt)) return;
+    var entry = { id: editPnlId || mkId(), date: pnlDate, pnl: amt, r_value: pnlR || "", note: pnlNote || "" };
+    var newArr = editPnlId
+      ? (activeAcct.daily_pnl || []).map(function(e) { return e.id === editPnlId ? entry : e; })
+      : _toConsumableArray((activeAcct.daily_pnl || []).filter(function(e) { return e.date !== pnlDate; })).concat([entry]);
+    updateAccount(activeAcct.id, { daily_pnl: newArr });
+    resetPnlForm(); showToast(editPnlId ? "Entry updated" : "P&L saved");
+  }
+  function deletePnlEntry(entryId) {
+    if (!activeAcct) return;
+    updateAccount(activeAcct.id, { daily_pnl: (activeAcct.daily_pnl || []).filter(function(e) { return e.id !== entryId; }) });
+    showToast("Entry deleted");
+  }
+  function startEditPnl(entry) {
+    setEditPnlId(entry.id); setPnlDate(entry.date); setPnlAmt(String(entry.pnl));
+    setPnlR(entry.r_value || ""); setPnlNote(entry.note || ""); setAddPnlMode(true);
+  }
+  var inp = { background: isDark ? "#111" : "#f8f8f8", border: "1px solid " + C.border, borderRadius: 6, padding: "6px 10px", fontSize: 12, fontFamily: F_MONO, color: C.text, outline: "none", width: "100%", boxSizing: "border-box" };
+  var btn = { border: "none", borderRadius: 6, padding: "7px 14px", fontSize: 11, fontWeight: 600, fontFamily: F_MONO, cursor: "pointer", letterSpacing: ".04em" };
+  var sortedPnl = activeAcct ? _toConsumableArray(activeAcct.daily_pnl || []).sort(function(a, b) { return b.date < a.date ? -1 : b.date > a.date ? 1 : 0; }) : [];
+  var phaseBg = activeAcct ? (activeAcct.phase === "Funded" || activeAcct.phase === "Passed" ? C.green : activeAcct.phase === "Blown" ? C.red : activeAcct.phase === "Phase 2" ? C.yellow : C.accent) : C.accent;
+  // ── Empty state ─────────────────────────────────────────────────────────────
+  if (accounts.length === 0 && !addMode) {
+    return /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } },
+      toast && /*#__PURE__*/React.createElement(ToastBar, { toast: toast }),
+      /*#__PURE__*/React.createElement(Card, null,
+        /*#__PURE__*/React.createElement("div", { style: { textAlign: "center", padding: "48px 20px" } },
+          /*#__PURE__*/React.createElement("svg", { width: 40, height: 40, viewBox: "0 0 24 24", fill: "none", style: { margin: "0 auto 12px", display: "block", opacity: 0.22 } },
+            /*#__PURE__*/React.createElement("rect", { x: 2, y: 7, width: 20, height: 14, rx: 2, stroke: C.textDim, strokeWidth: 1.5 }),
+            /*#__PURE__*/React.createElement("path", { d: "M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2", stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
+            /*#__PURE__*/React.createElement("line", { x1: 12, y1: 12, x2: 12, y2: 16, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
+            /*#__PURE__*/React.createElement("line", { x1: 10, y1: 14, x2: 14, y2: 14, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" })
+          ),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: C.textDim, fontWeight: 600, fontFamily: F_MONO } }, "No prop accounts yet"),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, color: C.textDim, marginTop: 6, opacity: 0.7 } }, "Track Topstep, FundedNext, FTMO, Apex and more"),
+          /*#__PURE__*/React.createElement("button", {
+            style: _objectSpread(_objectSpread({}, btn), {}, { background: C.accent, color: isDark ? "#000" : "#fff", marginTop: 20 }),
+            onClick: function() { setAddMode(true); }
+          }, "+ Add First Account")
+        )
+      )
+    );
+  }
+  // ── Add account form ────────────────────────────────────────────────────────
+  if (addMode) {
+    var _preset = PROP_FIRM_PRESETS[newFirm] || PROP_FIRM_PRESETS["Custom"];
+    return /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } },
+      toast && /*#__PURE__*/React.createElement(ToastBar, { toast: toast }),
+      /*#__PURE__*/React.createElement(Sect, null, "Add Prop Account"),
+      /*#__PURE__*/React.createElement(Card, null,
+        /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10 } },
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { className: "lbl" }, "Firm"),
+            /*#__PURE__*/React.createElement("select", { value: newFirm, onChange: function(e) { setNewFirm(e.target.value); }, style: inp },
+              PROP_PRESET_NAMES.map(function(n) { return /*#__PURE__*/React.createElement("option", { key: n, value: n }, n); })
+            )
+          ),
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { className: "lbl" }, "Label (optional)"),
+            /*#__PURE__*/React.createElement("input", { type: "text", value: newName, placeholder: newFirm, onChange: function(e) { setNewName(e.target.value); }, style: inp })
+          ),
+          /*#__PURE__*/React.createElement("div", { style: { background: isDark ? "#111" : "#f5f5f5", borderRadius: 6, padding: "8px 12px", fontSize: 10, fontFamily: F_MONO, color: C.textMid, lineHeight: 1.7 } },
+            "Target: $", Math.round((_preset.initial_balance || 50000) * (_preset.profit_target_pct || 6) / 100).toLocaleString(),
+            " (", _preset.profit_target_pct || 6, "%)  •  ",
+            "Daily Limit: ", _preset.daily_loss_pct > 0 ? "-$" + Math.round((_preset.initial_balance || 50000) * _preset.daily_loss_pct / 100).toLocaleString() : "None",
+            "  •  Max DD: -$", Math.round((_preset.initial_balance || 50000) * (_preset.max_dd_pct || 4) / 100).toLocaleString(),
+            "  •  ", PROP_DD_LABELS[_preset.dd_type] || ""
+          ),
+          /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8 } },
+            /*#__PURE__*/React.createElement("button", {
+              style: _objectSpread(_objectSpread({}, btn), {}, { background: C.accent, color: isDark ? "#000" : "#fff", flex: 1 }),
+              onClick: addAccount
+            }, "Create Account"),
+            /*#__PURE__*/React.createElement("button", {
+              style: _objectSpread(_objectSpread({}, btn), {}, { background: C.border, color: C.text }),
+              onClick: function() { setAddMode(false); setNewName(""); }
+            }, "Cancel")
+          )
+        )
+      )
+    );
+  }
+  // ── Main dashboard ──────────────────────────────────────────────────────────
+  return /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } },
+    toast && /*#__PURE__*/React.createElement(ToastBar, { toast: toast }),
+    // A. Account selector pills
+    /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" } },
+      accounts.map(function(a) {
+        return /*#__PURE__*/React.createElement("button", {
+          key: a.id,
+          onClick: function() { setActiveId(a.id); setSettingsOpen(false); },
+          style: { border: "1px solid " + (a.id === (activeAcct && activeAcct.id) ? C.accent : C.border), borderRadius: 20, padding: "5px 14px", fontSize: 11, fontFamily: F_MONO, fontWeight: 600, cursor: "pointer", background: a.id === (activeAcct && activeAcct.id) ? C.accent : "transparent", color: a.id === (activeAcct && activeAcct.id) ? (isDark ? "#000" : "#fff") : C.textMid, letterSpacing: ".03em" }
+        }, a.name);
+      }),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: function() { setAddMode(true); setSettingsOpen(false); },
+        style: { border: "1px dashed " + C.border, borderRadius: 20, padding: "5px 12px", fontSize: 11, fontFamily: F_MONO, cursor: "pointer", background: "transparent", color: C.textDim }
+      }, "+ Add")
+    ),
+    // B. Status banner
+    activeAcct && /*#__PURE__*/React.createElement(Card, null,
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 } },
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { style: { fontFamily: F_DISPLAY, fontSize: 22, color: C.text, letterSpacing: ".04em" } }, activeAcct.name.toUpperCase()),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: C.textDim, fontFamily: F_MONO, marginTop: 2 } },
+            "Started: ", activeAcct.start_date || today(),
+            "  •  Balance: $", metrics && metrics.currentBalance.toLocaleString("en-US", { maximumFractionDigits: 0 })
+          )
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
+          /*#__PURE__*/React.createElement("span", { style: { background: phaseBg, color: "#fff", borderRadius: 4, padding: "3px 10px", fontSize: 10, fontFamily: F_MONO, fontWeight: 700, letterSpacing: ".08em" } }, (activeAcct.phase || "Evaluation").toUpperCase()),
+          /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, fontFamily: F_MONO, color: C.textDim } }, (metrics && metrics.tradingDays) || 0, " day", (metrics && metrics.tradingDays !== 1) ? "s" : ""),
+          /*#__PURE__*/React.createElement("button", { onClick: function() { setSettingsOpen(function(v) { return !v; }); }, title: "Settings", style: { background: "transparent", border: "none", cursor: "pointer", color: settingsOpen ? C.accent : C.textDim, fontSize: 16, padding: "0 4px" } }, "\u2699")
+        )
+      )
+    ),
+    // C. Progress meters (3-col grid)
+    activeAcct && metrics && /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 } },
+      // Profit target
+      /*#__PURE__*/React.createElement(Card, null,
+        /*#__PURE__*/React.createElement("span", { className: "lbl" }, "Profit Target"),
+        /*#__PURE__*/React.createElement("div", { style: { fontFamily: F_DISPLAY, fontSize: 22, color: metrics.cumPnl >= 0 ? C.green : C.red, lineHeight: 1, marginTop: 4 } },
+          (metrics.cumPnl >= 0 ? "+" : "") + "$" + Math.abs(metrics.cumPnl).toLocaleString("en-US", { maximumFractionDigits: 0 })
+        ),
+        /*#__PURE__*/React.createElement(PropProgressBar, { pct: metrics.profitPct, color: C.green, C: C }),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, marginTop: 4 } },
+          metrics.profitPct.toFixed(1), "% of $", metrics.profitTargetDollar.toLocaleString("en-US", { maximumFractionDigits: 0 })
+        )
+      ),
+      // Today's P&L
+      /*#__PURE__*/React.createElement(Card, null,
+        /*#__PURE__*/React.createElement("span", { className: "lbl" }, "Today's P&L"),
+        /*#__PURE__*/React.createElement("div", { style: { fontFamily: F_DISPLAY, fontSize: 22, color: metrics.todayPnl >= 0 ? C.green : C.red, lineHeight: 1, marginTop: 4 } },
+          (metrics.todayPnl >= 0 ? "+" : "") + "$" + Math.abs(metrics.todayPnl).toLocaleString("en-US", { maximumFractionDigits: 0 })
+        ),
+        activeAcct.daily_loss_pct > 0
+          ? /*#__PURE__*/React.createElement(PropProgressBar, { pct: metrics.dailyLossPct, color: meterColor(metrics.dailyLossPct), C: C })
+          : /*#__PURE__*/React.createElement("div", { style: { height: 4, marginTop: 8 } }),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, marginTop: 4 } },
+          activeAcct.daily_loss_pct > 0 ? "Limit: -$" + metrics.dailyLossLimit.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "No daily limit"
+        )
+      ),
+      // Drawdown
+      /*#__PURE__*/React.createElement(Card, null,
+        /*#__PURE__*/React.createElement("span", { className: "lbl" }, "Drawdown"),
+        /*#__PURE__*/React.createElement("div", { style: { fontFamily: F_DISPLAY, fontSize: 22, color: metrics.ddPct > 75 ? C.red : metrics.ddPct > 50 ? C.yellow : C.text, lineHeight: 1, marginTop: 4 } },
+          "-$", metrics.currentDd.toLocaleString("en-US", { maximumFractionDigits: 0 })
+        ),
+        /*#__PURE__*/React.createElement(PropProgressBar, { pct: metrics.ddPct, color: meterColor(metrics.ddPct), C: C }),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, marginTop: 4 } },
+          metrics.ddPct.toFixed(1), "% of $", metrics.maxDdDollar.toLocaleString("en-US", { maximumFractionDigits: 0 }),
+          " (", PROP_DD_LABELS[activeAcct.dd_type] || "Trailing", ")"
+        )
+      )
+    ),
+    // D. Daily P&L Log
+    activeAcct && /*#__PURE__*/React.createElement(Card, null,
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 } },
+        /*#__PURE__*/React.createElement("span", { style: { fontFamily: F_MONO, fontSize: 11, fontWeight: 700, letterSpacing: ".08em", color: C.textMid, textTransform: "uppercase" } }, "Daily P&L Log"),
+        !addPnlMode && /*#__PURE__*/React.createElement("button", {
+          onClick: function() { resetPnlForm(); setAddPnlMode(true); },
+          style: _objectSpread(_objectSpread({}, btn), {}, { background: C.accent, color: isDark ? "#000" : "#fff", padding: "5px 12px" })
+        }, "+ Add")
+      ),
+      addPnlMode && /*#__PURE__*/React.createElement("div", { style: { background: isDark ? "#0a0a0a" : "#f5f5f5", borderRadius: 8, padding: 12, marginBottom: 12 } },
+        /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 } },
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { className: "lbl" }, "Date"),
+            /*#__PURE__*/React.createElement("input", { type: "date", value: pnlDate, onChange: function(e) { setPnlDate(e.target.value); }, style: inp })
+          ),
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { className: "lbl" }, "P&L ($)"),
+            /*#__PURE__*/React.createElement("input", { type: "number", value: pnlAmt, placeholder: "+450", onChange: function(e) { setPnlAmt(e.target.value); }, style: inp })
+          ),
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { className: "lbl" }, "R-Value"),
+            /*#__PURE__*/React.createElement("input", { type: "text", value: pnlR, placeholder: "+1.5R", onChange: function(e) { setPnlR(e.target.value); }, style: inp })
+          )
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { marginBottom: 8 } },
+          /*#__PURE__*/React.createElement("div", { className: "lbl" }, "Note (optional)"),
+          /*#__PURE__*/React.createElement("input", { type: "text", value: pnlNote, placeholder: "News day, managed early...", onChange: function(e) { setPnlNote(e.target.value); }, style: inp })
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8 } },
+          /*#__PURE__*/React.createElement("button", { style: _objectSpread(_objectSpread({}, btn), {}, { background: C.accent, color: isDark ? "#000" : "#fff" }), onClick: savePnlEntry }, editPnlId ? "Update" : "Save"),
+          /*#__PURE__*/React.createElement("button", { style: _objectSpread(_objectSpread({}, btn), {}, { background: C.border, color: C.text }), onClick: resetPnlForm }, "Cancel")
+        )
+      ),
+      sortedPnl.length === 0
+        ? /*#__PURE__*/React.createElement("div", { style: { textAlign: "center", padding: "20px 0", fontSize: 11, color: C.textDim, fontFamily: F_MONO } }, "No entries yet — add your first day's P&L")
+        : /*#__PURE__*/React.createElement("div", { style: { overflowX: "auto" } },
+            /*#__PURE__*/React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 11, fontFamily: F_MONO } },
+              /*#__PURE__*/React.createElement("thead", null,
+                /*#__PURE__*/React.createElement("tr", null,
+                  ["Date","P&L","R","Balance","Note",""].map(function(h) {
+                    return /*#__PURE__*/React.createElement("th", { key: h, style: { textAlign: "left", color: C.textDim, fontWeight: 600, paddingBottom: 6, fontSize: 9, letterSpacing: ".06em", textTransform: "uppercase", borderBottom: "1px solid " + C.border } }, h);
+                  })
+                )
+              ),
+              /*#__PURE__*/React.createElement("tbody", null,
+                sortedPnl.map(function(entry) {
+                  var allSorted = _toConsumableArray(activeAcct.daily_pnl || []).sort(function(a, b) { return a.date < b.date ? -1 : 1; });
+                  var runBal = activeAcct.initial_balance || 50000;
+                  for (var k = 0; k < allSorted.length; k++) { runBal += (allSorted[k].pnl || 0); if (allSorted[k].id === entry.id) break; }
+                  return /*#__PURE__*/React.createElement("tr", { key: entry.id, style: { borderBottom: "1px solid " + C.border } },
+                    /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px 7px 0", color: C.textMid } }, entry.date),
+                    /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px", color: (entry.pnl || 0) >= 0 ? C.green : C.red, fontWeight: 600 } },
+                      (entry.pnl >= 0 ? "+" : "") + "$" + Math.abs(entry.pnl || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })
+                    ),
+                    /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px", color: C.textMid } }, entry.r_value || "\u2014"),
+                    /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px", color: C.text } }, "$" + runBal.toLocaleString("en-US", { maximumFractionDigits: 0 })),
+                    /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px", color: C.textDim, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, entry.note || ""),
+                    /*#__PURE__*/React.createElement("td", { style: { padding: "7px 0 7px 8px", textAlign: "right", whiteSpace: "nowrap" } },
+                      /*#__PURE__*/React.createElement("button", { onClick: function() { startEditPnl(entry); }, style: { background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 13, padding: "0 4px" }, title: "Edit" }, "\u270f"),
+                      /*#__PURE__*/React.createElement("button", { onClick: function() { deletePnlEntry(entry.id); }, style: { background: "none", border: "none", cursor: "pointer", color: C.red, fontSize: 15, padding: "0 4px" }, title: "Delete" }, "\u00d7")
+                    )
+                  );
+                })
+              )
+            )
+          )
+    ),
+    // E. Rules reference (collapsible)
+    activeAcct && /*#__PURE__*/React.createElement(Card, null,
+      /*#__PURE__*/React.createElement("button", {
+        onClick: function() { setRulesOpen(function(v) { return !v; }); },
+        style: { background: "transparent", border: "none", cursor: "pointer", color: C.textMid, fontSize: 11, fontFamily: F_MONO, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6, padding: 0 }
+      }, rulesOpen ? "\u25be" : "\u25b8", "\u00a0Rules Reference"),
+      rulesOpen && /*#__PURE__*/React.createElement("div", { style: { marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 16px", fontSize: 11, fontFamily: F_MONO } },
+        [
+          ["Firm", activeAcct.firm],
+          ["Account", "$" + (activeAcct.initial_balance || 0).toLocaleString()],
+          ["Profit Target", "$" + Math.round((activeAcct.initial_balance || 0) * (activeAcct.profit_target_pct || 0) / 100).toLocaleString() + " (" + (activeAcct.profit_target_pct || 0) + "%)"],
+          ["Daily Limit", (activeAcct.daily_loss_pct || 0) > 0 ? "-$" + Math.round((activeAcct.initial_balance || 0) * (activeAcct.daily_loss_pct || 0) / 100).toLocaleString() + " (" + (activeAcct.daily_loss_pct || 0) + "%)" : "None"],
+          ["Max Drawdown", "-$" + Math.round((activeAcct.initial_balance || 0) * (activeAcct.max_dd_pct || 0) / 100).toLocaleString() + " (" + (activeAcct.max_dd_pct || 0) + "%)"],
+          ["DD Type", PROP_DD_LABELS[activeAcct.dd_type] || activeAcct.dd_type],
+          ["Consistency", activeAcct.consistency_rule ? "Best day \u2264 $" + Math.round((activeAcct.initial_balance || 0) * (activeAcct.profit_target_pct || 0) / 200).toLocaleString() : "No rule"],
+          ["Min Days", (activeAcct.min_trading_days || 0) > 0 ? activeAcct.min_trading_days + " days" : "None"]
+        ].map(function(pair) {
+          return /*#__PURE__*/React.createElement("div", { key: pair[0] },
+            /*#__PURE__*/React.createElement("div", { style: { color: C.textDim, fontSize: 9, letterSpacing: ".06em", textTransform: "uppercase", marginBottom: 1 } }, pair[0]),
+            /*#__PURE__*/React.createElement("div", { style: { color: C.text } }, pair[1])
+          );
+        })
+      )
+    ),
+    // F. Settings (expandable)
+    settingsOpen && activeAcct && /*#__PURE__*/React.createElement(Card, null,
+      /*#__PURE__*/React.createElement("div", { style: { fontFamily: F_MONO, fontSize: 11, fontWeight: 700, letterSpacing: ".08em", color: C.textMid, textTransform: "uppercase", marginBottom: 12 } }, "Account Settings"),
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10 } },
+        /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { className: "lbl" }, "Label"),
+            /*#__PURE__*/React.createElement("input", { type: "text", value: activeAcct.name, onChange: function(e) { updateAccount(activeAcct.id, { name: e.target.value }); }, style: inp })
+          ),
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { className: "lbl" }, "Phase"),
+            /*#__PURE__*/React.createElement("select", { value: activeAcct.phase || "Evaluation", onChange: function(e) { updateAccount(activeAcct.id, { phase: e.target.value }); }, style: inp },
+              PROP_PHASES.map(function(p) { return /*#__PURE__*/React.createElement("option", { key: p, value: p }, p); })
+            )
+          )
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+          /*#__PURE__*/React.createElement("button", {
+            style: _objectSpread(_objectSpread({}, btn), {}, { background: isDark ? "#1a1a1a" : "#f0f0f0", color: C.textMid, border: "1px solid " + C.border }),
+            onClick: function() { if (window.confirm("Reset all P&L entries for this account?")) { updateAccount(activeAcct.id, { daily_pnl: [] }); showToast("Account reset"); } }
+          }, "Reset P&L"),
+          /*#__PURE__*/React.createElement("button", {
+            style: _objectSpread(_objectSpread({}, btn), {}, { background: isDark ? "#1a1a1a" : "#f0f0f0", color: C.textMid, border: "1px solid " + C.border }),
+            onClick: function() { updateAccount(activeAcct.id, { status: "archived" }); showToast("Archived"); setSettingsOpen(false); }
+          }, "Archive"),
+          /*#__PURE__*/React.createElement("button", {
+            style: _objectSpread(_objectSpread({}, btn), {}, { background: "transparent", color: C.red, border: "1px solid " + C.red }),
+            onClick: function() { setConfirmDelAcct(activeAcct.id); }
+          }, "Delete Account")
+        ),
+        confirmDelAcct === (activeAcct && activeAcct.id) && /*#__PURE__*/React.createElement("div", { style: { background: isDark ? "#1a0000" : "#fff0f0", border: "1px solid " + C.red, borderRadius: 6, padding: "10px 12px" } },
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, fontFamily: F_MONO, color: C.red, marginBottom: 8 } }, "Delete this account and all P&L data? Cannot be undone."),
+          /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8 } },
+            /*#__PURE__*/React.createElement("button", { style: _objectSpread(_objectSpread({}, btn), {}, { background: C.red, color: "#fff" }), onClick: function() { deleteAccount(activeAcct.id); setSettingsOpen(false); } }, "Confirm Delete"),
+            /*#__PURE__*/React.createElement("button", { style: _objectSpread(_objectSpread({}, btn), {}, { background: C.border, color: C.text }), onClick: function() { setConfirmDelAcct(null); } }, "Cancel")
+          )
+        )
+      )
+    )
   );
 }
 
@@ -9933,21 +10370,7 @@ function NVJournal() {
     className: "tab-panel",
     style: { display:"flex", flexDirection:"column", gap:12 }
   }, /*#__PURE__*/React.createElement(Sect, null, "Prop Firm Tracker"),
-  /*#__PURE__*/React.createElement(Card, null,
-    /*#__PURE__*/React.createElement("div", { style:{ textAlign:"center", padding:"48px 20px" } },
-      /*#__PURE__*/React.createElement("svg", { width:40, height:40, viewBox:"0 0 24 24", fill:"none", style:{ margin:"0 auto 12px", display:"block", opacity:0.22 } },
-        /*#__PURE__*/React.createElement("rect", { x:2, y:7, width:20, height:14, rx:2, stroke:C.textDim, strokeWidth:1.5 }),
-        /*#__PURE__*/React.createElement("path", { d:"M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2", stroke:C.textDim, strokeWidth:1.5, strokeLinecap:"round" }),
-        /*#__PURE__*/React.createElement("line", { x1:12, y1:12, x2:12, y2:16, stroke:C.textDim, strokeWidth:1.5, strokeLinecap:"round" }),
-        /*#__PURE__*/React.createElement("line", { x1:10, y1:14, x2:14, y2:14, stroke:C.textDim, strokeWidth:1.5, strokeLinecap:"round" })
-      ),
-      /*#__PURE__*/React.createElement("div", { style:{ fontSize:13, color:C.textDim, fontWeight:600 } }, "Prop Firm Tracker — Coming Soon"),
-      /*#__PURE__*/React.createElement("div", { style:{ fontSize:10, color:C.textDim, marginTop:6, opacity:0.7, lineHeight:1.6 } },
-        "Track Topstep, FundedNext and other evaluations.", React.createElement("br", null),
-        "Daily drawdown, max drawdown, profit targets, and phase progress."
-      )
-    )
-  )), tab === "Calculator" && /*#__PURE__*/React.createElement("div", {
+  /*#__PURE__*/React.createElement(PropFirmTracker, { C: C, isDark: isDark })), tab === "Calculator" && /*#__PURE__*/React.createElement("div", {
     className: "tab-panel",
     style: {
       display: "flex",
@@ -10006,7 +10429,7 @@ function NVJournal() {
       fontFamily: F_MONO,
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v63")), /*#__PURE__*/React.createElement("span", {
+  }, "NV JOURNAL - v64")), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 9,
       color: C.textDim,
