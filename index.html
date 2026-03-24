@@ -315,7 +315,7 @@ var MIN_SAMPLE = 3;
 // ─── PROP FIRM PRESETS ────────────────────────────────────────────────────────
 var PROP_FIRM_PRESETS = {
   "Topstep 50k":    { initial_balance:50000, profit_target_pct:6,  daily_loss_pct:2, max_dd_pct:4,  dd_type:"trailing_eod",   consistency_rule:true,  min_trading_days:0 },
-  "FundedNext 10k": { initial_balance:10000, profit_target_pct:10, daily_loss_pct:5, max_dd_pct:10, dd_type:"scaling",         consistency_rule:false, min_trading_days:5 },
+  "FundedNext 10k": { initial_balance:10000, profit_target_pct:8,  daily_loss_pct:4, max_dd_pct:8,  dd_type:"scaling",         consistency_rule:false, min_trading_days:5 },
   "FTMO 10k":       { initial_balance:10000, profit_target_pct:10, daily_loss_pct:5, max_dd_pct:10, dd_type:"static",          consistency_rule:false, min_trading_days:4 },
   "Apex 50k":       { initial_balance:50000, profit_target_pct:6,  daily_loss_pct:0, max_dd_pct:5,  dd_type:"trailing_equity", consistency_rule:false, min_trading_days:0 },
   "Custom":         { initial_balance:50000, profit_target_pct:6,  daily_loss_pct:2, max_dd_pct:4,  dd_type:"trailing_eod",    consistency_rule:false, min_trading_days:0 }
@@ -3698,6 +3698,14 @@ function Toggle3(_ref_t3) {
 }
 
 // ─── PROP FIRM TRACKER ────────────────────────────────────────────────────────
+function parseRValue(rStr) {
+  if (!rStr) return 0;
+  var s = String(rStr).trim();
+  var neg = s.indexOf('-') > -1;
+  var n = parseFloat(s.replace(/[^0-9.]/g, ''));
+  if (isNaN(n)) return 0;
+  return neg ? -n : n;
+}
 function calcPropMetrics(acct) {
   var pnlArr = acct.daily_pnl || [];
   var initialBal = acct.initial_balance || 50000;
@@ -3708,6 +3716,7 @@ function calcPropMetrics(acct) {
   var runningBal = initialBal;
   var hwm = initialBal;
   var floor = initialBal - maxDdDollar;
+  var cumR = 0, winDays = 0, lossDays = 0, totalTrades = 0;
   pnlArr.forEach(function(entry) {
     runningBal += (entry.pnl || 0);
     if (runningBal > hwm) hwm = runningBal;
@@ -3717,6 +3726,10 @@ function calcPropMetrics(acct) {
       var sf = runningBal - maxDdDollar;
       floor = sf < (initialBal - maxDdDollar) ? (initialBal - maxDdDollar) : sf;
     }
+    cumR += parseRValue(entry.r_value);
+    if ((entry.pnl || 0) > 0) winDays++;
+    else if ((entry.pnl || 0) < 0) lossDays++;
+    totalTrades += (entry.trade_count || 0);
   });
   var cumPnl = runningBal - initialBal;
   var currentDd = hwm - runningBal; if (currentDd < 0) currentDd = 0;
@@ -3736,13 +3749,23 @@ function calcPropMetrics(acct) {
   var consistencyOk = !acct.consistency_rule || bestDay <= profitTargetDollar * 0.5;
   var minDaysOk = !acct.min_trading_days || pnlArr.length >= acct.min_trading_days;
   var targetHit = cumPnl >= profitTargetDollar && minDaysOk && consistencyOk;
+  var tradingDays = pnlArr.length;
+  var rTarget = acct.r_target || 10;
+  var rPct = rTarget > 0 ? (cumR / rTarget) * 100 : 0;
+  if (rPct > 100) rPct = 100;
+  var winRate = tradingDays > 0 ? (winDays / tradingDays) * 100 : 0;
+  var avgR = tradingDays > 0 ? cumR / tradingDays : 0;
+  var avgTradesPerDay = tradingDays > 0 ? totalTrades / tradingDays : 0;
   return {
     cumPnl: cumPnl, currentBalance: runningBal, hwm: hwm, floor: floor,
     currentDd: currentDd, profitTargetDollar: profitTargetDollar,
     dailyLossLimit: dailyLossLimit, maxDdDollar: maxDdDollar,
-    todayPnl: todayPnl, tradingDays: pnlArr.length, bestDay: bestDay,
+    todayPnl: todayPnl, tradingDays: tradingDays, bestDay: bestDay,
     profitPct: profitPct, dailyLossPct: dailyLossPct, ddPct: ddPct,
-    blown: blown, consistencyOk: consistencyOk, targetHit: targetHit, minDaysOk: minDaysOk
+    blown: blown, consistencyOk: consistencyOk, targetHit: targetHit, minDaysOk: minDaysOk,
+    cumR: cumR, avgR: avgR, rTarget: rTarget, rPct: rPct,
+    winDays: winDays, lossDays: lossDays, winRate: winRate,
+    totalTrades: totalTrades, avgTradesPerDay: avgTradesPerDay
   };
 }
 function PropProgressBar(_ref_ppb) {
@@ -3774,6 +3797,7 @@ function PropFirmTracker(_ref_pft) {
   var _usM = useState(""), _usM2 = _slicedToArray(_usM, 2), pnlR = _usM2[0], setPnlR = _usM2[1];
   var _usN = useState(""), _usN2 = _slicedToArray(_usN, 2), pnlNote = _usN2[0], setPnlNote = _usN2[1];
   var _usO = useState(null), _usO2 = _slicedToArray(_usO, 2), confirmDelAcct = _usO2[0], setConfirmDelAcct = _usO2[1];
+  var _usP = useState(""), _usP2 = _slicedToArray(_usP, 2), pnlCount = _usP2[0], setPnlCount = _usP2[1];
   // Derive active account
   var activeAcct = null;
   for (var _ai = 0; _ai < accounts.length; _ai++) { if (accounts[_ai].id === activeId) { activeAcct = accounts[_ai]; break; } }
@@ -3830,13 +3854,14 @@ function PropFirmTracker(_ref_pft) {
     setAccounts(function(prev) { return prev.map(function(a) { return a.id === id ? _objectSpread(_objectSpread({}, a), updates) : a; }); });
   }
   function resetPnlForm() {
-    setPnlDate(today()); setPnlAmt(""); setPnlR(""); setPnlNote("");
+    setPnlDate(today()); setPnlAmt(""); setPnlR(""); setPnlNote(""); setPnlCount("");
     setEditPnlId(null); setAddPnlMode(false);
   }
   function savePnlEntry() {
     if (!activeAcct || !pnlAmt) return;
     var amt = parseFloat(pnlAmt); if (isNaN(amt)) return;
-    var entry = { id: editPnlId || mkId(), date: pnlDate, pnl: amt, r_value: pnlR || "", note: pnlNote || "" };
+    var tc = parseInt(pnlCount, 10); if (isNaN(tc)) tc = 0;
+    var entry = { id: editPnlId || mkId(), date: pnlDate, pnl: amt, r_value: pnlR || "", note: pnlNote || "", trade_count: tc };
     var newArr = editPnlId
       ? (activeAcct.daily_pnl || []).map(function(e) { return e.id === editPnlId ? entry : e; })
       : _toConsumableArray((activeAcct.daily_pnl || []).filter(function(e) { return e.date !== pnlDate; })).concat([entry]);
@@ -3850,7 +3875,8 @@ function PropFirmTracker(_ref_pft) {
   }
   function startEditPnl(entry) {
     setEditPnlId(entry.id); setPnlDate(entry.date); setPnlAmt(String(entry.pnl));
-    setPnlR(entry.r_value || ""); setPnlNote(entry.note || ""); setAddPnlMode(true);
+    setPnlR(entry.r_value || ""); setPnlNote(entry.note || "");
+    setPnlCount(entry.trade_count ? String(entry.trade_count) : ""); setAddPnlMode(true);
   }
   var inp = { background: isDark ? "#111" : "#f8f8f8", border: "1px solid " + C.border, borderRadius: 6, padding: "6px 10px", fontSize: 12, fontFamily: F_MONO, color: C.text, outline: "none", width: "100%", boxSizing: "border-box" };
   var btn = { border: "none", borderRadius: 6, padding: "7px 14px", fontSize: 11, fontWeight: 600, fontFamily: F_MONO, cursor: "pointer", letterSpacing: ".04em" };
@@ -3951,8 +3977,8 @@ function PropFirmTracker(_ref_pft) {
         )
       )
     ),
-    // C. Progress meters (3-col grid)
-    activeAcct && metrics && /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 } },
+    // C. Progress meters (4-col grid)
+    activeAcct && metrics && /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 } },
       // Profit target
       /*#__PURE__*/React.createElement(Card, null,
         /*#__PURE__*/React.createElement("span", { className: "lbl" }, "Profit Target"),
@@ -3988,6 +4014,40 @@ function PropFirmTracker(_ref_pft) {
           metrics.ddPct.toFixed(1), "% of $", metrics.maxDdDollar.toLocaleString("en-US", { maximumFractionDigits: 0 }),
           " (", PROP_DD_LABELS[activeAcct.dd_type] || "Trailing", ")"
         )
+      ),
+      // R Progress
+      /*#__PURE__*/React.createElement(Card, null,
+        /*#__PURE__*/React.createElement("span", { className: "lbl" }, "R Progress"),
+        /*#__PURE__*/React.createElement("div", { style: { fontFamily: F_DISPLAY, fontSize: 22, color: metrics.cumR >= 0 ? C.green : C.red, lineHeight: 1, marginTop: 4 } },
+          (metrics.cumR >= 0 ? "+" : "") + metrics.cumR.toFixed(2) + "R"
+        ),
+        /*#__PURE__*/React.createElement(PropProgressBar, { pct: metrics.cumR < 0 ? 0 : metrics.rPct, color: C.accent, C: C }),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, marginTop: 4 } },
+          "Avg: ", (metrics.avgR >= 0 ? "+" : "") + metrics.avgR.toFixed(2), "R/day",
+          " \u00b7 Target: ", metrics.rTarget, "R"
+        )
+      )
+    ),
+    // C2. Stats row (Win Rate + Trade Count)
+    activeAcct && metrics && metrics.tradingDays > 0 && /*#__PURE__*/React.createElement(Card, null,
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" } },
+        /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+          /*#__PURE__*/React.createElement("span", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, letterSpacing: ".08em", textTransform: "uppercase" } }, "Win Rate"),
+          /*#__PURE__*/React.createElement("span", { style: { fontFamily: F_MONO, fontWeight: 700, fontSize: 14, color: metrics.winRate >= 50 ? C.green : C.red } },
+            metrics.winRate.toFixed(0), "%"
+          ),
+          /*#__PURE__*/React.createElement("span", { style: { fontFamily: F_MONO, fontSize: 10, color: C.textDim } },
+            "(", metrics.winDays, "W · ", metrics.lossDays, "L)"
+          )
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { width: 1, height: 20, background: C.border } }),
+        /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+          /*#__PURE__*/React.createElement("span", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, letterSpacing: ".08em", textTransform: "uppercase" } }, "Trades"),
+          /*#__PURE__*/React.createElement("span", { style: { fontFamily: F_MONO, fontWeight: 700, fontSize: 14, color: C.text } }, metrics.totalTrades),
+          metrics.avgTradesPerDay > 0 && /*#__PURE__*/React.createElement("span", { style: { fontFamily: F_MONO, fontSize: 10, color: C.textDim } },
+            "(", metrics.avgTradesPerDay.toFixed(1), "/day)"
+          )
+        )
       )
     ),
     // D. Daily P&L Log
@@ -4000,7 +4060,7 @@ function PropFirmTracker(_ref_pft) {
         }, "+ Add")
       ),
       addPnlMode && /*#__PURE__*/React.createElement("div", { style: { background: isDark ? "#0a0a0a" : "#f5f5f5", borderRadius: 8, padding: 12, marginBottom: 12 } },
-        /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 } },
+        /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 } },
           /*#__PURE__*/React.createElement("div", null,
             /*#__PURE__*/React.createElement("div", { className: "lbl" }, "Date"),
             /*#__PURE__*/React.createElement("input", { type: "date", value: pnlDate, onChange: function(e) { setPnlDate(e.target.value); }, style: inp })
@@ -4012,6 +4072,10 @@ function PropFirmTracker(_ref_pft) {
           /*#__PURE__*/React.createElement("div", null,
             /*#__PURE__*/React.createElement("div", { className: "lbl" }, "R-Value"),
             /*#__PURE__*/React.createElement("input", { type: "text", value: pnlR, placeholder: "+1.5R", onChange: function(e) { setPnlR(e.target.value); }, style: inp })
+          ),
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { className: "lbl" }, "# Trades"),
+            /*#__PURE__*/React.createElement("input", { type: "number", value: pnlCount, placeholder: "0", min: "0", onChange: function(e) { setPnlCount(e.target.value); }, style: inp })
           )
         ),
         /*#__PURE__*/React.createElement("div", { style: { marginBottom: 8 } },
@@ -4029,30 +4093,39 @@ function PropFirmTracker(_ref_pft) {
             /*#__PURE__*/React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 11, fontFamily: F_MONO } },
               /*#__PURE__*/React.createElement("thead", null,
                 /*#__PURE__*/React.createElement("tr", null,
-                  ["Date","P&L","R","Balance","Note",""].map(function(h) {
+                  ["Date","P&L","R","Cum R","Trades","Balance","Note",""].map(function(h) {
                     return /*#__PURE__*/React.createElement("th", { key: h, style: { textAlign: "left", color: C.textDim, fontWeight: 600, paddingBottom: 6, fontSize: 9, letterSpacing: ".06em", textTransform: "uppercase", borderBottom: "1px solid " + C.border } }, h);
                   })
                 )
               ),
               /*#__PURE__*/React.createElement("tbody", null,
-                sortedPnl.map(function(entry) {
+                (function() {
                   var allSorted = _toConsumableArray(activeAcct.daily_pnl || []).sort(function(a, b) { return a.date < b.date ? -1 : 1; });
-                  var runBal = activeAcct.initial_balance || 50000;
-                  for (var k = 0; k < allSorted.length; k++) { runBal += (allSorted[k].pnl || 0); if (allSorted[k].id === entry.id) break; }
-                  return /*#__PURE__*/React.createElement("tr", { key: entry.id, style: { borderBottom: "1px solid " + C.border } },
-                    /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px 7px 0", color: C.textMid } }, entry.date),
-                    /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px", color: (entry.pnl || 0) >= 0 ? C.green : C.red, fontWeight: 600 } },
-                      (entry.pnl >= 0 ? "+" : "") + "$" + Math.abs(entry.pnl || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })
-                    ),
-                    /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px", color: C.textMid } }, entry.r_value || "\u2014"),
-                    /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px", color: C.text } }, "$" + runBal.toLocaleString("en-US", { maximumFractionDigits: 0 })),
-                    /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px", color: C.textDim, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, entry.note || ""),
-                    /*#__PURE__*/React.createElement("td", { style: { padding: "7px 0 7px 8px", textAlign: "right", whiteSpace: "nowrap" } },
-                      /*#__PURE__*/React.createElement("button", { onClick: function() { startEditPnl(entry); }, style: { background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 13, padding: "0 4px" }, title: "Edit" }, "\u270f"),
-                      /*#__PURE__*/React.createElement("button", { onClick: function() { deletePnlEntry(entry.id); }, style: { background: "none", border: "none", cursor: "pointer", color: C.red, fontSize: 15, padding: "0 4px" }, title: "Delete" }, "\u00d7")
-                    )
-                  );
-                })
+                  var cumRByDate = {};
+                  var runR = 0;
+                  allSorted.forEach(function(e) { runR += parseRValue(e.r_value); cumRByDate[e.id] = runR; });
+                  return sortedPnl.map(function(entry) {
+                    var runBal = activeAcct.initial_balance || 50000;
+                    for (var k = 0; k < allSorted.length; k++) { runBal += (allSorted[k].pnl || 0); if (allSorted[k].id === entry.id) break; }
+                    var entryR = cumRByDate[entry.id] || 0;
+                    var rDisp = entryR === 0 ? "\u2014" : (entryR > 0 ? "+" : "") + entryR.toFixed(2) + "R";
+                    return /*#__PURE__*/React.createElement("tr", { key: entry.id, style: { borderBottom: "1px solid " + C.border } },
+                      /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px 7px 0", color: C.textMid } }, entry.date),
+                      /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px", color: (entry.pnl || 0) >= 0 ? C.green : C.red, fontWeight: 600 } },
+                        (entry.pnl >= 0 ? "+" : "") + "$" + Math.abs(entry.pnl || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })
+                      ),
+                      /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px", color: C.textMid } }, entry.r_value || "\u2014"),
+                      /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px", color: entryR > 0 ? C.green : entryR < 0 ? C.red : C.textDim, fontWeight: 600 } }, rDisp),
+                      /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px", color: C.textMid, textAlign: "center" } }, entry.trade_count || "\u2014"),
+                      /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px", color: C.text } }, "$" + runBal.toLocaleString("en-US", { maximumFractionDigits: 0 })),
+                      /*#__PURE__*/React.createElement("td", { style: { padding: "7px 8px", color: C.textDim, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, entry.note || ""),
+                      /*#__PURE__*/React.createElement("td", { style: { padding: "7px 0 7px 8px", textAlign: "right", whiteSpace: "nowrap" } },
+                        /*#__PURE__*/React.createElement("button", { onClick: function() { startEditPnl(entry); }, style: { background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 13, padding: "0 4px" }, title: "Edit" }, "\u270f"),
+                        /*#__PURE__*/React.createElement("button", { onClick: function() { deletePnlEntry(entry.id); }, style: { background: "none", border: "none", cursor: "pointer", color: C.red, fontSize: 15, padding: "0 4px" }, title: "Delete" }, "\u00d7")
+                      )
+                    );
+                  });
+                })()
               )
             )
           )
@@ -4085,7 +4158,7 @@ function PropFirmTracker(_ref_pft) {
     settingsOpen && activeAcct && /*#__PURE__*/React.createElement(Card, null,
       /*#__PURE__*/React.createElement("div", { style: { fontFamily: F_MONO, fontSize: 11, fontWeight: 700, letterSpacing: ".08em", color: C.textMid, textTransform: "uppercase", marginBottom: 12 } }, "Account Settings"),
       /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10 } },
-        /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
+        /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 } },
           /*#__PURE__*/React.createElement("div", null,
             /*#__PURE__*/React.createElement("div", { className: "lbl" }, "Label"),
             /*#__PURE__*/React.createElement("input", { type: "text", value: activeAcct.name, onChange: function(e) { updateAccount(activeAcct.id, { name: e.target.value }); }, style: inp })
@@ -4095,6 +4168,10 @@ function PropFirmTracker(_ref_pft) {
             /*#__PURE__*/React.createElement("select", { value: activeAcct.phase || "Evaluation", onChange: function(e) { updateAccount(activeAcct.id, { phase: e.target.value }); }, style: inp },
               PROP_PHASES.map(function(p) { return /*#__PURE__*/React.createElement("option", { key: p, value: p }, p); })
             )
+          ),
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { className: "lbl" }, "R Target"),
+            /*#__PURE__*/React.createElement("input", { type: "number", value: activeAcct.r_target || 10, min: "1", onChange: function(e) { updateAccount(activeAcct.id, { r_target: parseFloat(e.target.value) || 10 }); }, style: inp })
           )
         ),
         /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
@@ -4102,6 +4179,10 @@ function PropFirmTracker(_ref_pft) {
             style: _objectSpread(_objectSpread({}, btn), {}, { background: isDark ? "#1a1a1a" : "#f0f0f0", color: C.textMid, border: "1px solid " + C.border }),
             onClick: function() { if (window.confirm("Reset all P&L entries for this account?")) { updateAccount(activeAcct.id, { daily_pnl: [] }); showToast("Account reset"); } }
           }, "Reset P&L"),
+          PROP_FIRM_PRESETS[activeAcct.firm] && /*#__PURE__*/React.createElement("button", {
+            style: _objectSpread(_objectSpread({}, btn), {}, { background: isDark ? "#1a1a1a" : "#f0f0f0", color: C.textMid, border: "1px solid " + C.border }),
+            onClick: function() { var p = PROP_FIRM_PRESETS[activeAcct.firm]; updateAccount(activeAcct.id, { initial_balance: p.initial_balance, profit_target_pct: p.profit_target_pct, daily_loss_pct: p.daily_loss_pct, max_dd_pct: p.max_dd_pct, dd_type: p.dd_type, consistency_rule: p.consistency_rule, min_trading_days: p.min_trading_days }); showToast("Rules synced to preset"); }
+          }, "Sync Rules"),
           /*#__PURE__*/React.createElement("button", {
             style: _objectSpread(_objectSpread({}, btn), {}, { background: isDark ? "#1a1a1a" : "#f0f0f0", color: C.textMid, border: "1px solid " + C.border }),
             onClick: function() { updateAccount(activeAcct.id, { status: "archived" }); showToast("Archived"); setSettingsOpen(false); }
@@ -10429,7 +10510,7 @@ function NVJournal() {
       fontFamily: F_MONO,
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v64")), /*#__PURE__*/React.createElement("span", {
+  }, "NV JOURNAL - v65")), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 9,
       color: C.textDim,
