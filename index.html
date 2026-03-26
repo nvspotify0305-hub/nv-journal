@@ -321,6 +321,13 @@ var PROP_FIRM_PRESETS = {
   "Custom":         { initial_balance:50000, profit_target_pct:6,  daily_loss_pct:2, max_dd_pct:4,  dd_type:"trailing_eod",    consistency_rule:false, min_trading_days:0 }
 };
 var PROP_PRESET_NAMES = ["Topstep 50k","FundedNext 10k","FTMO 10k","Apex 50k","Custom"];
+var PROP_FIRM_COLORS = {
+  "Topstep 50k":   { dark: "#00c896", light: "#007a5e" },
+  "FundedNext 10k":{ dark: "#f59e0b", light: "#b45309" },
+  "FTMO 10k":      { dark: "#ef4444", light: "#b91c1c" },
+  "Apex 50k":      { dark: "#8b5cf6", light: "#5b21b6" },
+  "Custom":        { dark: "#60a5fa", light: "#1a4fa0" }
+};
 var PROP_DD_LABELS = { "trailing_eod":"Trailing EOD","static":"Static Floor","trailing_equity":"Trailing Equity","scaling":"Scaling" };
 var PROP_PHASES = ["Evaluation","Phase 2","Funded","Blown","Passed"];
 
@@ -606,7 +613,12 @@ var DARK = {
   shadowElevated: "0 0 0 1px #333",
   gradeAp: "#fff",
   gradeA: "#60a5fa",
-  gradeB: "#f06464"
+  gradeB: "#f06464",
+  headerBg: "#0c0c0f",
+  headerBorder: "rgba(96,165,250,0.18)",
+  headerShadow: "0 1px 0 rgba(96,165,250,0.08), 0 4px 24px rgba(0,0,0,0.5)",
+  tabActiveBg: "rgba(96,165,250,0.1)",
+  tabActiveCol: "#60a5fa"
 };
 var LIGHT = {
   bg: "#f0f0f0",
@@ -628,7 +640,12 @@ var LIGHT = {
   shadowElevated: "0 2px 8px rgba(0,0,0,0.13)",
   gradeAp: "#000",
   gradeA: "#1a4fa0",
-  gradeB: "#c0392b"
+  gradeB: "#c0392b",
+  headerBg: "#f7f8fa",
+  headerBorder: "rgba(26,79,160,0.14)",
+  headerShadow: "0 1px 0 rgba(26,79,160,0.07), 0 4px 20px rgba(0,0,0,0.06)",
+  tabActiveBg: "rgba(26,79,160,0.07)",
+  tabActiveCol: "#1a4fa0"
 };
 
 var F_MONO = "'JetBrains Mono',monospace";
@@ -1083,7 +1100,7 @@ function LockScreen(_ref_lock) {
           fontSize: 9, letterSpacing: "0.1em",
           color: isDark ? "#333" : "#ccc"
         }
-      }, "v63")
+      }, "v66")
     )
   );
 }
@@ -3717,6 +3734,11 @@ function calcPropMetrics(acct) {
   var hwm = initialBal;
   var floor = initialBal - maxDdDollar;
   var cumR = 0, winDays = 0, lossDays = 0, totalTrades = 0;
+  var totalWinPnl = 0, totalLossPnl = 0;
+  var bestDay = 0, worstDay = 0;
+  var bestDayDate = "", worstDayDate = "";
+  var streak = 0, streakType = "none";
+  var sortedForStreak = _toConsumableArray(pnlArr).sort(function(a,b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
   pnlArr.forEach(function(entry) {
     runningBal += (entry.pnl || 0);
     if (runningBal > hwm) hwm = runningBal;
@@ -3727,18 +3749,33 @@ function calcPropMetrics(acct) {
       floor = sf < (initialBal - maxDdDollar) ? (initialBal - maxDdDollar) : sf;
     }
     cumR += parseRValue(entry.r_value);
-    if ((entry.pnl || 0) > 0) winDays++;
-    else if ((entry.pnl || 0) < 0) lossDays++;
+    var p = entry.pnl || 0;
+    if (p > 0) { winDays++; totalWinPnl += p; }
+    else if (p < 0) { lossDays++; totalLossPnl += Math.abs(p); }
+    if (p > bestDay) { bestDay = p; bestDayDate = entry.date || ""; }
+    if (p < worstDay) { worstDay = p; worstDayDate = entry.date || ""; }
     totalTrades += (entry.trade_count || 0);
   });
+  // streak from sorted array
+  if (sortedForStreak.length > 0) {
+    var lastType = (sortedForStreak[sortedForStreak.length - 1].pnl || 0) >= 0 ? "win" : "loss";
+    var s = 0;
+    for (var si = sortedForStreak.length - 1; si >= 0; si--) {
+      var sp = sortedForStreak[si].pnl || 0;
+      var st = sp >= 0 ? "win" : "loss";
+      if (st === lastType) s++; else break;
+    }
+    streak = s; streakType = lastType;
+  }
+  var profitFactor = totalLossPnl > 0 ? totalWinPnl / totalLossPnl : totalWinPnl > 0 ? 999 : 0;
+  var avgWin = winDays > 0 ? totalWinPnl / winDays : 0;
+  var avgLoss = lossDays > 0 ? totalLossPnl / lossDays : 0;
   var cumPnl = runningBal - initialBal;
   var currentDd = hwm - runningBal; if (currentDd < 0) currentDd = 0;
   var todayStr = today();
   var todayEntry = null;
   for (var i = 0; i < pnlArr.length; i++) { if (pnlArr[i].date === todayStr) { todayEntry = pnlArr[i]; break; } }
   var todayPnl = todayEntry ? (todayEntry.pnl || 0) : 0;
-  var bestDay = 0;
-  for (var j = 0; j < pnlArr.length; j++) { if ((pnlArr[j].pnl || 0) > bestDay) bestDay = pnlArr[j].pnl || 0; }
   var profitPct = profitTargetDollar > 0 ? (cumPnl / profitTargetDollar) * 100 : 0;
   if (profitPct > 100) profitPct = 100; if (profitPct < 0) profitPct = 0;
   var dailyLossPct = (dailyLossLimit > 0 && todayPnl < 0) ? (Math.abs(todayPnl) / dailyLossLimit) * 100 : 0;
@@ -3765,7 +3802,12 @@ function calcPropMetrics(acct) {
     blown: blown, consistencyOk: consistencyOk, targetHit: targetHit, minDaysOk: minDaysOk,
     cumR: cumR, avgR: avgR, rTarget: rTarget, rPct: rPct,
     winDays: winDays, lossDays: lossDays, winRate: winRate,
-    totalTrades: totalTrades, avgTradesPerDay: avgTradesPerDay
+    totalTrades: totalTrades, avgTradesPerDay: avgTradesPerDay,
+    bestDay: bestDay, bestDayDate: bestDayDate,
+    worstDay: worstDay, worstDayDate: worstDayDate,
+    profitFactor: profitFactor, avgWin: avgWin, avgLoss: avgLoss,
+    streak: streak, streakType: streakType,
+    pnlHistory: _toConsumableArray(pnlArr).sort(function(a,b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; })
   };
 }
 function PropProgressBar(_ref_ppb) {
@@ -3798,11 +3840,13 @@ function PropFirmTracker(_ref_pft) {
   var _usN = useState(""), _usN2 = _slicedToArray(_usN, 2), pnlNote = _usN2[0], setPnlNote = _usN2[1];
   var _usO = useState(null), _usO2 = _slicedToArray(_usO, 2), confirmDelAcct = _usO2[0], setConfirmDelAcct = _usO2[1];
   var _usP = useState(""), _usP2 = _slicedToArray(_usP, 2), pnlCount = _usP2[0], setPnlCount = _usP2[1];
+  var _usQ = useState(null), _usQ2 = _slicedToArray(_usQ, 2), dragOverId = _usQ2[0], setDragOverId = _usQ2[1];
   // Derive active account
   var activeAcct = null;
   for (var _ai = 0; _ai < accounts.length; _ai++) { if (accounts[_ai].id === activeId) { activeAcct = accounts[_ai]; break; } }
   if (!activeAcct && accounts.length > 0) activeAcct = accounts[0];
   var metrics = activeAcct ? calcPropMetrics(activeAcct) : null;
+  var firmCol = activeAcct ? ((PROP_FIRM_COLORS[activeAcct.firm] || PROP_FIRM_COLORS["Custom"])[isDark ? "dark" : "light"]) : C.green;
   function meterColor(pct) { return pct >= 75 ? C.red : pct >= 50 ? C.yellow : C.green; }
   // Set first account active
   useEffect(function() {
@@ -3946,18 +3990,54 @@ function PropFirmTracker(_ref_pft) {
   // ── Main dashboard ──────────────────────────────────────────────────────────
   return /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } },
     toast && /*#__PURE__*/React.createElement(ToastBar, { toast: toast }),
-    // A. Account selector pills
+    // A. Account selector pills — draggable
     /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" } },
       accounts.map(function(a) {
+        var isActive = a.id === (activeAcct && activeAcct.id);
+        var fc = (PROP_FIRM_COLORS[a.firm] || PROP_FIRM_COLORS["Custom"])[isDark ? "dark" : "light"];
+        var isDragOver = dragOverId === a.id;
         return /*#__PURE__*/React.createElement("button", {
           key: a.id,
+          type: "button",
+          draggable: true,
+          onDragStart: function(e) { e.dataTransfer.setData("text/plain", a.id); },
+          onDragOver: function(e) { e.preventDefault(); setDragOverId(a.id); },
+          onDragLeave: function() { setDragOverId(null); },
+          onDrop: function(e) {
+            e.preventDefault();
+            var fromId = e.dataTransfer.getData("text/plain");
+            if (fromId === a.id) { setDragOverId(null); return; }
+            setAccounts(function(prev) {
+              var arr = _toConsumableArray(prev);
+              var fromIdx = arr.findIndex(function(x) { return x.id === fromId; });
+              var toIdx = arr.findIndex(function(x) { return x.id === a.id; });
+              var item = arr.splice(fromIdx, 1)[0];
+              arr.splice(toIdx, 0, item);
+              return arr;
+            });
+            setDragOverId(null);
+          },
           onClick: function() { setActiveId(a.id); setSettingsOpen(false); },
-          style: { border: "1px solid " + (a.id === (activeAcct && activeAcct.id) ? C.accent : C.border), borderRadius: 20, padding: "5px 14px", fontSize: 11, fontFamily: F_MONO, fontWeight: 600, cursor: "pointer", background: a.id === (activeAcct && activeAcct.id) ? C.accent : "transparent", color: a.id === (activeAcct && activeAcct.id) ? (isDark ? "#000" : "#fff") : C.textMid, letterSpacing: ".03em" }
-        }, a.name);
+          style: {
+            border: "1px solid " + (isActive ? fc : C.border),
+            borderLeft: "3px solid " + fc,
+            borderRadius: 7,
+            padding: "5px 12px 5px 10px",
+            fontSize: 11, fontFamily: F_MONO, fontWeight: 600,
+            cursor: "grab",
+            background: isActive ? (isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)") : "transparent",
+            color: isActive ? fc : C.textMid,
+            letterSpacing: ".03em",
+            transition: "all .15s",
+            opacity: isDragOver ? 0.5 : 1,
+            outline: isDragOver ? "2px dashed " + fc : "none"
+          }
+        }, "\u22EE " + a.name);
       }),
       /*#__PURE__*/React.createElement("button", {
+        type: "button",
         onClick: function() { setAddMode(true); setSettingsOpen(false); },
-        style: { border: "1px dashed " + C.border, borderRadius: 20, padding: "5px 12px", fontSize: 11, fontFamily: F_MONO, cursor: "pointer", background: "transparent", color: C.textDim }
+        style: { border: "1px dashed " + C.border, borderRadius: 7, padding: "5px 12px", fontSize: 11, fontFamily: F_MONO, cursor: "pointer", background: "transparent", color: C.textDim }
       }, "+ Add")
     ),
     // B. Status banner
@@ -3982,10 +4062,10 @@ function PropFirmTracker(_ref_pft) {
       // Profit target
       /*#__PURE__*/React.createElement(Card, null,
         /*#__PURE__*/React.createElement("span", { className: "lbl" }, "Profit Target"),
-        /*#__PURE__*/React.createElement("div", { style: { fontFamily: F_DISPLAY, fontSize: 22, color: metrics.cumPnl >= 0 ? C.green : C.red, lineHeight: 1, marginTop: 4 } },
+        /*#__PURE__*/React.createElement("div", { style: { fontFamily: F_DISPLAY, fontSize: 22, color: metrics.cumPnl >= 0 ? firmCol : C.red, lineHeight: 1, marginTop: 4 } },
           (metrics.cumPnl >= 0 ? "+" : "") + "$" + Math.abs(metrics.cumPnl).toLocaleString("en-US", { maximumFractionDigits: 0 })
         ),
-        /*#__PURE__*/React.createElement(PropProgressBar, { pct: metrics.profitPct, color: C.green, C: C }),
+        /*#__PURE__*/React.createElement(PropProgressBar, { pct: metrics.profitPct, color: firmCol, C: C }),
         /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, marginTop: 4 } },
           metrics.profitPct.toFixed(1), "% of $", metrics.profitTargetDollar.toLocaleString("en-US", { maximumFractionDigits: 0 })
         )
@@ -4018,17 +4098,17 @@ function PropFirmTracker(_ref_pft) {
       // R Progress
       /*#__PURE__*/React.createElement(Card, null,
         /*#__PURE__*/React.createElement("span", { className: "lbl" }, "R Progress"),
-        /*#__PURE__*/React.createElement("div", { style: { fontFamily: F_DISPLAY, fontSize: 22, color: metrics.cumR >= 0 ? C.green : C.red, lineHeight: 1, marginTop: 4 } },
+        /*#__PURE__*/React.createElement("div", { style: { fontFamily: F_DISPLAY, fontSize: 22, color: metrics.cumR >= 0 ? C.blue : C.red, lineHeight: 1, marginTop: 4 } },
           (metrics.cumR >= 0 ? "+" : "") + metrics.cumR.toFixed(2) + "R"
         ),
-        /*#__PURE__*/React.createElement(PropProgressBar, { pct: metrics.cumR < 0 ? 0 : metrics.rPct, color: C.accent, C: C }),
+        /*#__PURE__*/React.createElement(PropProgressBar, { pct: metrics.cumR < 0 ? 0 : metrics.rPct, color: C.blue, C: C }),
         /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, marginTop: 4 } },
           "Avg: ", (metrics.avgR >= 0 ? "+" : "") + metrics.avgR.toFixed(2), "R/day",
           " \u00b7 Target: ", metrics.rTarget, "R"
         )
       )
     ),
-    // C2. Stats row (Win Rate + Trade Count)
+    // C2. Stats bar (Win Rate + Trades + Streak)
     activeAcct && metrics && metrics.tradingDays > 0 && /*#__PURE__*/React.createElement(Card, null,
       /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" } },
         /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
@@ -4036,17 +4116,143 @@ function PropFirmTracker(_ref_pft) {
           /*#__PURE__*/React.createElement("span", { style: { fontFamily: F_MONO, fontWeight: 700, fontSize: 14, color: metrics.winRate >= 50 ? C.green : C.red } },
             metrics.winRate.toFixed(0), "%"
           ),
-          /*#__PURE__*/React.createElement("span", { style: { fontFamily: F_MONO, fontSize: 10, color: C.textDim } },
-            "(", metrics.winDays, "W · ", metrics.lossDays, "L)"
+          /*#__PURE__*/React.createElement("span", { style: { fontFamily: F_MONO, fontSize: 10, color: C.textDim } }, "(", metrics.winDays, "W · ", metrics.lossDays, "L)"),
+          /*#__PURE__*/React.createElement("div", { style: { width: 60, height: 3, background: C.border, borderRadius: 2, overflow: "hidden" } },
+            /*#__PURE__*/React.createElement("div", { style: { width: metrics.winRate + "%", height: "100%", background: metrics.winRate >= 50 ? C.green : C.red, borderRadius: 2 } })
           )
         ),
         /*#__PURE__*/React.createElement("div", { style: { width: 1, height: 20, background: C.border } }),
         /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
           /*#__PURE__*/React.createElement("span", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, letterSpacing: ".08em", textTransform: "uppercase" } }, "Trades"),
           /*#__PURE__*/React.createElement("span", { style: { fontFamily: F_MONO, fontWeight: 700, fontSize: 14, color: C.text } }, metrics.totalTrades),
-          metrics.avgTradesPerDay > 0 && /*#__PURE__*/React.createElement("span", { style: { fontFamily: F_MONO, fontSize: 10, color: C.textDim } },
-            "(", metrics.avgTradesPerDay.toFixed(1), "/day)"
+          metrics.avgTradesPerDay > 0 && /*#__PURE__*/React.createElement("span", { style: { fontFamily: F_MONO, fontSize: 10, color: C.textDim } }, "(", metrics.avgTradesPerDay.toFixed(1), "/day)")
+        ),
+        metrics.streak > 0 && /*#__PURE__*/React.createElement(React.Fragment, null,
+          /*#__PURE__*/React.createElement("div", { style: { width: 1, height: 20, background: C.border } }),
+          /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+            /*#__PURE__*/React.createElement("span", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, letterSpacing: ".08em", textTransform: "uppercase" } }, "Streak"),
+            /*#__PURE__*/React.createElement("span", {
+              style: {
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "2px 9px 2px 7px", borderRadius: 20,
+                fontFamily: F_MONO, fontSize: 12, fontWeight: 700,
+                background: metrics.streakType === "win" ? (isDark ? "rgba(61,214,140,0.12)" : "rgba(26,110,53,0.08)") : (isDark ? "rgba(240,100,100,0.12)" : "rgba(192,57,43,0.08)"),
+                color: metrics.streakType === "win" ? C.green : C.red
+              }
+            },
+              /*#__PURE__*/React.createElement("span", { style: { width: 5, height: 5, borderRadius: "50%", background: metrics.streakType === "win" ? C.green : C.red, flexShrink: 0 } }),
+              metrics.streak, metrics.streakType === "win" ? "W" : "L"
+            )
           )
+        )
+      )
+    ),
+    // C3. New stats row — Consistency · Profit Factor · Best/Worst Day · Equity Sparkline
+    activeAcct && metrics && metrics.tradingDays > 1 && /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 } },
+      // Consistency
+      /*#__PURE__*/React.createElement(Card, null,
+        /*#__PURE__*/React.createElement("span", { className: "lbl" }, "Consistency"),
+        /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginTop: 4 } },
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { style: { fontFamily: F_DISPLAY, fontSize: 26, lineHeight: 1, color: metrics.winRate >= 60 ? C.green : metrics.winRate >= 40 ? C.yellow : C.red } },
+              metrics.winRate.toFixed(0), "%"
+            ),
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, marginTop: 3 } }, "profitable days")
+          ),
+          /*#__PURE__*/React.createElement("svg", { width: 44, height: 44, viewBox: "0 0 44 44", style: { flexShrink: 0 } },
+            /*#__PURE__*/React.createElement("circle", { cx: 22, cy: 22, r: 17, fill: "none", stroke: C.border, strokeWidth: 4 }),
+            /*#__PURE__*/React.createElement("circle", { cx: 22, cy: 22, r: 17, fill: "none",
+              stroke: metrics.winRate >= 60 ? C.green : metrics.winRate >= 40 ? C.yellow : C.red,
+              strokeWidth: 4,
+              strokeDasharray: String(2 * Math.PI * 17),
+              strokeDashoffset: String(2 * Math.PI * 17 * (1 - metrics.winRate / 100)),
+              strokeLinecap: "round",
+              transform: "rotate(-90 22 22)"
+            })
+          )
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, marginTop: 6 } },
+          metrics.winDays, "W · ", metrics.lossDays, "L · ", metrics.tradingDays - metrics.winDays - metrics.lossDays, "BE of ", metrics.tradingDays, " days"
+        )
+      ),
+      // Profit Factor
+      /*#__PURE__*/React.createElement(Card, null,
+        /*#__PURE__*/React.createElement("span", { className: "lbl" }, "Profit Factor"),
+        /*#__PURE__*/React.createElement("div", { style: { fontFamily: F_DISPLAY, fontSize: 26, lineHeight: 1, marginTop: 4, color: metrics.profitFactor >= 1.5 ? C.green : metrics.profitFactor >= 1 ? C.yellow : C.red } },
+          metrics.profitFactor >= 99 ? "\u221e" : metrics.profitFactor.toFixed(2)
+        ),
+        /*#__PURE__*/React.createElement(PropProgressBar, { pct: Math.min(metrics.profitFactor / 3 * 100, 100), color: metrics.profitFactor >= 1.5 ? C.green : metrics.profitFactor >= 1 ? C.yellow : C.red, C: C }),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, marginTop: 4 } },
+          "Avg Win $", metrics.avgWin.toFixed(0), " \u00b7 Avg Loss $", metrics.avgLoss.toFixed(0)
+        )
+      ),
+      // Best / Worst Day
+      /*#__PURE__*/React.createElement(Card, null,
+        /*#__PURE__*/React.createElement("span", { className: "lbl" }, "Best / Worst Day"),
+        /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "flex-end", marginTop: 4 } },
+          /*#__PURE__*/React.createElement("div", { style: { flex: 1 } },
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, marginBottom: 3 } }, "BEST"),
+            /*#__PURE__*/React.createElement("div", { style: { fontFamily: F_DISPLAY, fontSize: 22, color: C.green, lineHeight: 1 } },
+              "+$", metrics.bestDay.toLocaleString("en-US", { maximumFractionDigits: 0 })
+            )
+          ),
+          /*#__PURE__*/React.createElement("div", { style: { width: 1, background: C.border, alignSelf: "stretch", margin: "2px 0" } }),
+          /*#__PURE__*/React.createElement("div", { style: { flex: 1 } },
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, marginBottom: 3 } }, "WORST"),
+            /*#__PURE__*/React.createElement("div", { style: { fontFamily: F_DISPLAY, fontSize: 22, color: C.red, lineHeight: 1 } },
+              metrics.worstDay < 0 ? "-$" + Math.abs(metrics.worstDay).toLocaleString("en-US", { maximumFractionDigits: 0 }) : "+$" + metrics.worstDay.toLocaleString("en-US", { maximumFractionDigits: 0 })
+            )
+          )
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, marginTop: 6 } },
+          metrics.bestDayDate
+            ? /*#__PURE__*/React.createElement(React.Fragment, null,
+                /*#__PURE__*/React.createElement("span", { style: { color: C.green } }, "\u25cf"), " ", metrics.bestDayDate,
+                metrics.worstDayDate ? /*#__PURE__*/React.createElement(React.Fragment, null, " \u00b7 ", /*#__PURE__*/React.createElement("span", { style: { color: C.red } }, "\u25cf"), " ", metrics.worstDayDate) : null
+              )
+            : "No data yet"
+        )
+      ),
+      // Equity Sparkline
+      /*#__PURE__*/React.createElement(Card, null,
+        /*#__PURE__*/React.createElement("span", { className: "lbl" }, "Equity Curve"),
+        /*#__PURE__*/React.createElement("div", { style: { fontFamily: F_MONO, fontSize: 11, fontWeight: 700, color: firmCol, marginBottom: 4 } },
+          "$", metrics.currentBalance.toLocaleString("en-US", { maximumFractionDigits: 0 }),
+          /*#__PURE__*/React.createElement("span", { style: { fontFamily: F_MONO, fontSize: 9, color: C.textDim, fontWeight: 400, marginLeft: 5 } }, "balance")
+        ),
+        (function() {
+          var hist = metrics.pnlHistory;
+          if (hist.length < 2) return /*#__PURE__*/React.createElement("div", { style: { height: 48, display: "flex", alignItems: "center", justifyContent: "center" } },
+            /*#__PURE__*/React.createElement("span", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim } }, "Need 2+ days")
+          );
+          var initial = activeAcct.initial_balance || 50000;
+          var balances = [initial];
+          hist.forEach(function(e) { balances.push(balances[balances.length - 1] + (e.pnl || 0)); });
+          var minB = Math.min.apply(null, balances), maxB = Math.max.apply(null, balances);
+          var range = maxB - minB || 1;
+          var W = 200, H = 44;
+          var pts = balances.map(function(b, i) {
+            var x = (i / (balances.length - 1)) * W;
+            var y = H - ((b - minB) / range) * (H - 6) - 3;
+            return [x, y];
+          });
+          var d = pts.map(function(p, i) { return (i === 0 ? "M" : "L") + p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
+          var fill = d + " L" + W + "," + H + " L0," + H + " Z";
+          var lastY = pts[pts.length - 1][1];
+          return /*#__PURE__*/React.createElement("svg", { width: "100%", height: H, viewBox: "0 0 " + W + " " + H, preserveAspectRatio: "none" },
+            /*#__PURE__*/React.createElement("defs", null,
+              /*#__PURE__*/React.createElement("linearGradient", { id: "eq-grad", x1: "0", y1: "0", x2: "0", y2: "1" },
+                /*#__PURE__*/React.createElement("stop", { offset: "0%", stopColor: firmCol, stopOpacity: isDark ? "0.2" : "0.12" }),
+                /*#__PURE__*/React.createElement("stop", { offset: "100%", stopColor: firmCol, stopOpacity: "0" })
+              )
+            ),
+            /*#__PURE__*/React.createElement("path", { d: fill, fill: "url(#eq-grad)" }),
+            /*#__PURE__*/React.createElement("path", { d: d, fill: "none", stroke: firmCol, strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" }),
+            /*#__PURE__*/React.createElement("circle", { cx: pts[pts.length - 1][0].toFixed(1), cy: lastY.toFixed(1), r: "3", fill: firmCol })
+          );
+        })(),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, marginTop: 4 } },
+          metrics.tradingDays, " trading days"
         )
       )
     ),
@@ -7847,7 +8053,7 @@ function NVJournal() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      borderBottom: "1px solid ".concat(isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"),
+      borderBottom: "1px solid ".concat(C.headerBorder),
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
@@ -7855,9 +8061,9 @@ function NVJournal() {
       height: 52,
       position: "sticky",
       top: 0,
-      background: C.bg,
+      background: C.headerBg,
       zIndex: 150,
-      boxShadow: isDark ? "0 1px 12px rgba(0,0,0,0.4)" : "0 1px 12px rgba(0,0,0,0.06)"
+      boxShadow: C.headerShadow
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -7900,9 +8106,9 @@ function NVJournal() {
         fontSize: 11,
         letterSpacing: ".06em",
         fontWeight: tab === t ? 600 : 500,
-        background: tab === t ? C.accent : "transparent",
-        color: tab === t ? "#fff" : C.textMid,
-        boxShadow: tab === t ? (isDark ? "0 2px 8px rgba(0,0,0,0.3)" : "0 2px 8px rgba(0,0,0,0.12)") : "none",
+        background: tab === t ? C.tabActiveBg : "transparent",
+        color: tab === t ? C.tabActiveCol : C.textMid,
+        boxShadow: "none",
         transition: "all 0.15s ease",
         cursor: "pointer"
       }
@@ -7916,10 +8122,11 @@ function NVJournal() {
   }, /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
-      color: C.textDim,
-      fontFamily: F_MONO
+      color: C.tabActiveCol,
+      fontFamily: F_MONO,
+      opacity: 0.7
     }
-  }, today(), " ", /*#__PURE__*/React.createElement(Clock, { tz: tz, dst: dst, accentColor: C.accent })), /*#__PURE__*/React.createElement("span", {
+  }, today(), " ", /*#__PURE__*/React.createElement(Clock, { tz: tz, dst: dst, accentColor: C.tabActiveCol })), /*#__PURE__*/React.createElement("span", {
     title: syncing ? "Syncing\u2026" : pendingSync ? "Unsynced trades queued" : syncError ? "Supabase unreachable" : "Synced",
     style: {
       display: "inline-block",
@@ -10510,7 +10717,7 @@ function NVJournal() {
       fontFamily: F_MONO,
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v65")), /*#__PURE__*/React.createElement("span", {
+  }, "NV JOURNAL - v66")), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 9,
       color: C.textDim,
