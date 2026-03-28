@@ -310,7 +310,7 @@ var KEY_ZONES = ["Daily FVG", "H4 FVG", "H1 FVG", "IFVG", "PDH", "PDL", "Swing H
 var H1_PHASES = ["Consolidation", "Manipulation", "Continuation", "Expansion"];
 var OUTCOMES = ["Win", "Loss", "BE", "NT"];
 var NO_TRADE_R = ["Lack of RR", "Poor Entry Timing", "News", "Choppy PA", "Opposing Key Level", "No Setup", "Missed", "Non-Executable C5+", "Other"];
-var TABS = ["Dashboard", "Trades", "Review", "Days", "Log Trade", "Prop Firms", "Calculator", "Crypto"];
+var TABS = ["Dashboard", "Trades", "Review", "Days", "Log Trade", "Macro", "Prop Firms", "Calculator", "Crypto"];
 var MIN_SAMPLE = 3;
 // ─── PROP FIRM PRESETS ────────────────────────────────────────────────────────
 var PROP_FIRM_PRESETS = {
@@ -4936,6 +4936,347 @@ function EmptyState(props) {
     props.hint && React.createElement("div", { style: { fontSize: 11, opacity: 0.5, color: C.textDim } }, props.hint)
   );
 }
+/* ── MACRO TAB ─────────────────────────────────────────────────────────────── */
+function MacroTab() {
+  var _th = useTheme(), C = _th.C, isDark = _th.isDark;
+  var bp = useBreakpoint();
+  var _tz = (function(){ try{ return localStorage.getItem('nv_tz') || 'London\\Dublin'; }catch(e){ return 'London\\Dublin'; } })();
+  var _dst = (function(){ try{ return JSON.parse(localStorage.getItem('nv_dst')); }catch(e){ return false; } })();
+  var TZ_UTC = { "London\\Dublin": [0,1], "New York": [-5,-4], "Sydney": [11,10] };
+  var tzOff = (TZ_UTC[_tz] || [0,1])[_dst ? 1 : 0];
+
+  var _p = React.useState(null); var prices = _p[0], setPrices = _p[1];
+  var _cal = React.useState(null); var calData = _cal[0], setCalData = _cal[1];
+  var _sent = React.useState(null); var sentiment = _sent[0], setSentiment = _sent[1];
+  var _ld = React.useState({prices:true,calendar:true,sentiment:true}); var loading = _ld[0], setLoading = _ld[1];
+  var _er = React.useState({}); var errors = _er[0], setErrors = _er[1];
+  var _dx = React.useState(function(){ try{ return localStorage.getItem('nv_dxy_bias')||'Neutral'; }catch(e){ return 'Neutral'; } });
+  var dxyBias = _dx[0], setDxyBias = _dx[1];
+
+  var CACHE_KEY = 'nv_macro_v1';
+  function getCache(k) {
+    try {
+      var c = JSON.parse(localStorage.getItem(CACHE_KEY)||'{}');
+      var e = c[k]; if(!e) return null;
+      var ttl = {prices:30*60*1000,calendar:4*60*60*1000,sentiment:60*60*1000}[k]||30*60*1000;
+      return Date.now()-e.ts > ttl ? null : e.data;
+    } catch(e){ return null; }
+  }
+  function setCache(k, data) {
+    try {
+      var c = JSON.parse(localStorage.getItem(CACHE_KEY)||'{}');
+      c[k] = {data:data, ts:Date.now()};
+      localStorage.setItem(CACHE_KEY, JSON.stringify(c));
+    } catch(e){}
+  }
+  function setLoad(k,v){ setLoading(function(p){ var n=Object.assign({},p); n[k]=v; return n; }); }
+  function setErr(k,v){ setErrors(function(p){ var n=Object.assign({},p); n[k]=v; return n; }); }
+
+  function fetchPrices() {
+    var cached = getCache('prices');
+    if(cached){ setPrices(cached); setLoad('prices',false); return; }
+    var today = new Date();
+    var yest = new Date(today-86400000);
+    var ymd = function(d){ return d.toISOString().slice(0,10); };
+    Promise.all([
+      fetch('https://api.frankfurter.app/latest?from=USD&to=EUR,GBP,JPY,CHF,AUD').then(function(r){return r.json();}),
+      fetch('https://api.frankfurter.app/'+ymd(yest)+'?from=USD&to=EUR,GBP,JPY,CHF,AUD').then(function(r){return r.json();}),
+      fetch('https://api.gold-api.com/price/XAU').then(function(r){return r.json();}).catch(function(){return null;})
+    ]).then(function(res){
+      var lat=res[0], prev=res[1], gold=res[2];
+      function pd(pair) {
+        var inv = pair==='EURUSD'||pair==='GBPUSD'||pair==='AUDUSD';
+        var cur = pair==='EURUSD'?'EUR':pair==='GBPUSD'?'GBP':pair==='USDJPY'?'JPY':pair==='USDCHF'?'CHF':'AUD';
+        var dp = pair==='USDJPY' ? 3 : 5;
+        var now = inv ? 1/lat.rates[cur] : lat.rates[cur];
+        var was = inv ? 1/prev.rates[cur] : prev.rates[cur];
+        var chg = now-was, pct = chg/was*100;
+        return { price: now.toFixed(dp), chg:(chg>=0?'+':'')+chg.toFixed(dp), chgPct:(pct>=0?'+':'')+pct.toFixed(2)+'%', up:chg>=0 };
+      }
+      var gp = gold?(gold.price||gold.XAU||null):null;
+      var gpr = gold?(gold.prev_close_price||null):null;
+      var gchg = gp&&gpr ? gp-gpr : null;
+      var signals = [
+        {label:'Gold (XAUUSD)', riskOff: gchg!==null?gchg>0:null, dir: gchg!==null?(gchg>0?'▲ Rising':'▼ Falling'):'—'},
+        {label:'JPY (USDJPY)',  riskOff: !pd('USDJPY').up,  dir: pd('USDJPY').up?'▲ Rising':'▼ Falling'},
+        {label:'CHF (USDCHF)', riskOff: !pd('USDCHF').up,  dir: pd('USDCHF').up?'▲ Rising':'▼ Falling'},
+        {label:'AUD (AUDUSD)', riskOff: !pd('AUDUSD').up,  dir: pd('AUDUSD').up?'▲ Rising':'▼ Falling'}
+      ];
+      var validSigs = signals.filter(function(s){return s.riskOff!==null;});
+      var roffCount = validSigs.filter(function(s){return s.riskOff;}).length;
+      var riskLabel = roffCount>=3?'Risk Off':roffCount<=1?'Risk On':'Neutral';
+      var riskCol = roffCount>=3?C.red:roffCount<=1?C.green:C.yellow;
+      var riskConf = (roffCount===4||roffCount===0)?'High':(roffCount===3||roffCount===1)?'Moderate':'Mixed';
+      var data = {
+        eurusd:pd('EURUSD'), gbpusd:pd('GBPUSD'), usdjpy:pd('USDJPY'), usdchf:pd('USDCHF'), audusd:pd('AUDUSD'),
+        gold: gp ? {price:gp.toFixed(2), chg:gchg!==null?(gchg>=0?'+':'')+gchg.toFixed(2):'—', chgPct:gchg!==null&&gpr?(gchg>=0?'+':'')+((gchg/gpr)*100).toFixed(2)+'%':'—', up:gchg!==null?gchg>=0:null} : null,
+        riskSignals:signals, riskOff:roffCount, riskLabel:riskLabel, riskCol:riskCol, riskConf:riskConf,
+        ts: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})
+      };
+      setPrices(data); setCache('prices',data); setLoad('prices',false);
+    }).catch(function(){ setErr('prices','Failed to load'); setLoad('prices',false); });
+  }
+
+  function fetchCalendar() {
+    var cached = getCache('calendar');
+    if(cached){ setCalData(cached); setLoad('calendar',false); return; }
+    fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json')
+      .then(function(r){return r.json();})
+      .then(function(raw){
+        var filtered = raw.filter(function(ev){
+          return ev.impact==='High' && ['USD','EUR','GBP'].indexOf(ev.country)!==-1;
+        });
+        var events = filtered.map(function(ev){
+          var d = new Date(ev.date);
+          var localMs = d.getTime() + tzOff*3600*1000;
+          var ld = new Date(localMs);
+          var hh = String(ld.getUTCHours()).padStart(2,'0');
+          var mm = String(ld.getUTCMinutes()).padStart(2,'0');
+          var dateStr = new Date(d.getTime()).toISOString().slice(0,10); // keep UTC date for grouping
+          var dayLabel = ld.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'});
+          return { time:hh+':'+mm, utcH:d.getUTCHours(), date:dateStr, day:dayLabel, cur:ev.country, name:ev.title, forecast:ev.forecast||'—', previous:ev.previous||'—', actual:ev.actual||null };
+        });
+        var byDate = {};
+        events.forEach(function(ev){ if(!byDate[ev.date])byDate[ev.date]=[]; byDate[ev.date].push(ev); });
+        var data = {events:events, byDate:byDate};
+        setCalData(data); setCache('calendar',data); setLoad('calendar',false);
+      }).catch(function(){ setErr('calendar','Calendar unavailable'); setLoad('calendar',false); });
+  }
+
+  function fetchSentiment() {
+    var sess = null; try{ sess=localStorage.getItem('nv_mfxbook_session'); }catch(e){}
+    var email = null, pass = null;
+    try{ email=localStorage.getItem('nv_mfxbook_email'); pass=localStorage.getItem('nv_mfxbook_pass'); }catch(e){}
+    var cached = getCache('sentiment');
+    if(cached){ setSentiment(cached); setLoad('sentiment',false); return; }
+    if(!sess && (!email||!pass)){ setErr('sentiment','configure'); setLoad('sentiment',false); return; }
+    function doFetch(token){
+      fetch('https://www.myfxbook.com/api/get-community-outlook.json?session='+encodeURIComponent(token))
+        .then(function(r){return r.json();})
+        .then(function(res){
+          if(res.error===false&&res.symbols){
+            var data = ['EURUSD','GBPUSD','USDJPY','USDCHF'].map(function(pair){
+              var s = res.symbols.find(function(x){return x.name===pair;});
+              return s ? {pair:pair, long:Math.round(parseFloat(s.longPercentage)), short:Math.round(parseFloat(s.shortPercentage))} : null;
+            }).filter(Boolean);
+            setSentiment(data); setCache('sentiment',data);
+          } else {
+            try{localStorage.removeItem('nv_mfxbook_session');}catch(e){}
+            setErr('sentiment','Session expired');
+          }
+          setLoad('sentiment',false);
+        }).catch(function(){ setErr('sentiment','Unavailable'); setLoad('sentiment',false); });
+    }
+    if(sess){ doFetch(sess); return; }
+    fetch('https://www.myfxbook.com/api/login.json?email='+encodeURIComponent(email)+'&password='+encodeURIComponent(pass))
+      .then(function(r){return r.json();})
+      .then(function(res){
+        if(res.error===false&&res.session){ try{localStorage.setItem('nv_mfxbook_session',res.session);}catch(e){} doFetch(res.session); }
+        else{ setErr('sentiment','Login failed'); setLoad('sentiment',false); }
+      }).catch(function(){ setErr('sentiment','Unavailable'); setLoad('sentiment',false); });
+  }
+
+  React.useEffect(function(){ fetchPrices(); fetchCalendar(); fetchSentiment(); }, []);
+
+  var SESSION_RANGES = [
+    {key:'london', label:'LONDON OPEN', utcStart:7, utcEnd:12},
+    {key:'ny',     label:'NEW YORK OPEN', utcStart:12, utcEnd:15},
+    {key:'close',  label:'LONDON CLOSE', utcStart:15, utcEnd:18}
+  ];
+  var todayStr = new Date().toISOString().slice(0,10);
+  var todayEvs = calData ? (calData.byDate[todayStr]||[]) : [];
+  var sessionEvs = SESSION_RANGES.map(function(s){
+    return { session:s, events:todayEvs.filter(function(ev){ return ev.utcH>=s.utcStart&&ev.utcH<s.utcEnd; }) };
+  });
+  var weekDates = calData ? Object.keys(calData.byDate).sort() : [];
+  var curCol = function(cur){ return cur==='EUR'?'#60a5fa':cur==='GBP'?C.green:C.yellow; };
+  var Spinner = /*#__PURE__*/React.createElement("span",{style:{color:C.textDim,fontSize:11}},"Loading…");
+
+  function saveDxyBias(b){ setDxyBias(b); try{localStorage.setItem('nv_dxy_bias',b);}catch(e){} }
+
+  return /*#__PURE__*/React.createElement("div", {className:"tab-panel", style:{display:"flex",flexDirection:"column",gap:16}},
+    /*#__PURE__*/React.createElement(Sect, null, "Macro — Market Context"),
+
+    /* ROW 1: Prices + Risk */
+    /*#__PURE__*/React.createElement("div", {style:{display:"grid",gridTemplateColumns:bp.isMobile?"1fr":"1fr 1fr",gap:12}},
+      /*#__PURE__*/React.createElement(Card, null,
+        /*#__PURE__*/React.createElement("span",{className:"lbl",style:{marginBottom:12}},"Prices — Daily Snapshot"),
+        loading.prices ? Spinner : prices ?
+          /*#__PURE__*/React.createElement(React.Fragment, null,
+            /*#__PURE__*/React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}},
+              [{pair:"EURUSD",d:prices.eurusd},{pair:"GBPUSD",d:prices.gbpusd}].map(function(p){
+                return /*#__PURE__*/React.createElement("div",{key:p.pair,style:{background:C.surfaceHigh,borderRadius:8,padding:"10px 12px"}},
+                  /*#__PURE__*/React.createElement("div",{style:{fontSize:9,letterSpacing:".1em",color:C.textDim,marginBottom:4}},p.pair),
+                  /*#__PURE__*/React.createElement("div",{style:{fontFamily:"'Bebas Neue'",fontSize:24,color:C.text,lineHeight:1,marginBottom:2}},p.d.price),
+                  /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:p.d.up?C.green:C.red}},p.d.chg+"  "+p.d.chgPct)
+                );
+              })
+            ),
+            /*#__PURE__*/React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:6,marginBottom:14}},
+              [{label:"USDJPY",d:prices.usdjpy},{label:"USDCHF",d:prices.usdchf},{label:"AUDUSD",d:prices.audusd}].map(function(p){
+                return /*#__PURE__*/React.createElement("div",{key:p.label,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0"}},
+                  /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textMid,fontFamily:"'Bebas Neue'",letterSpacing:".06em"}},p.label),
+                  /*#__PURE__*/React.createElement("span",{style:{fontSize:10,fontFamily:"'Courier New',monospace",color:C.text}},p.d.price),
+                  /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:p.d.up?C.green:C.red}},p.d.chgPct)
+                );
+              })
+            ),
+            /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",paddingTop:10,borderTop:"1px solid "+C.border,marginBottom:10}},
+              /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim}},"GOLD (XAUUSD)"),
+              prices.gold ?
+                /*#__PURE__*/React.createElement("div",{style:{display:"flex",gap:8}},
+                  /*#__PURE__*/React.createElement("span",{style:{fontFamily:"'Bebas Neue'",fontSize:15,color:C.text}},prices.gold.price),
+                  /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:prices.gold.up===null?C.textDim:prices.gold.up?C.green:C.red}},prices.gold.chgPct)
+                ) : /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textDim}},"—")
+            ),
+            /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between"}},
+              /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,letterSpacing:".1em"}},"DXY BIAS"),
+              /*#__PURE__*/React.createElement("div",{style:{display:"flex",gap:4}},
+                ["Bullish","Neutral","Bearish"].map(function(b){
+                  var act=b===dxyBias, col=b==="Bullish"?C.green:b==="Bearish"?C.red:C.textDim;
+                  return /*#__PURE__*/React.createElement("button",{key:b,type:"button",onClick:function(){saveDxyBias(b);},
+                    style:{fontSize:9,padding:"3px 8px",borderRadius:4,border:"1px solid "+(act?col:C.border),background:act?(b==="Bullish"?"rgba(61,214,140,0.15)":b==="Bearish"?"rgba(240,100,100,0.15)":C.surfaceHigh):"transparent",color:act?col:C.textDim,cursor:"pointer"}},b);
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement("div",{style:{fontSize:8,color:C.textDim,marginTop:8,textAlign:"right"}},"Updated "+prices.ts)
+          ) : /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.red}},errors.prices||"Error")
+      ),
+      /*#__PURE__*/React.createElement(Card, null,
+        /*#__PURE__*/React.createElement("span",{className:"lbl",style:{marginBottom:12}},"Risk Sentiment"),
+        loading.prices ? Spinner : prices ?
+          /*#__PURE__*/React.createElement(React.Fragment, null,
+            /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"center",gap:14,marginBottom:16}},
+              /*#__PURE__*/React.createElement("div",{style:{width:60,height:60,borderRadius:"50%",background:prices.riskLabel==="Risk Off"?"rgba(240,100,100,0.12)":prices.riskLabel==="Risk On"?"rgba(61,214,140,0.12)":"rgba(251,191,36,0.12)",border:"2px solid "+prices.riskCol,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},
+                /*#__PURE__*/React.createElement("span",{style:{fontFamily:"'Bebas Neue'",fontSize:10,color:prices.riskCol,textAlign:"center",lineHeight:1.3}},prices.riskLabel.replace(" ","\n"))
+              ),
+              /*#__PURE__*/React.createElement("div",null,
+                /*#__PURE__*/React.createElement("div",{style:{fontFamily:"'Bebas Neue'",fontSize:22,color:prices.riskCol,lineHeight:1}},prices.riskLabel),
+                /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:C.textDim,marginTop:2}},prices.riskOff+" of 4 signals Risk Off"),
+                /*#__PURE__*/React.createElement("div",{style:{fontSize:9,color:C.textMid,marginTop:2}},prices.riskConf+" confidence")
+              )
+            ),
+            /*#__PURE__*/React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:6}},
+              prices.riskSignals.map(function(s){
+                var sc = s.riskOff===null ? C.textDim : s.riskOff ? C.red : C.green;
+                return /*#__PURE__*/React.createElement("div",{key:s.label,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",borderRadius:6,background:C.surfaceHigh}},
+                  /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textMid}},s.label),
+                  /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:sc,fontWeight:600}},s.dir),
+                  /*#__PURE__*/React.createElement("span",{style:{fontSize:8,padding:"2px 5px",borderRadius:3,background:s.riskOff===null?"transparent":s.riskOff?"rgba(240,100,100,0.12)":"rgba(61,214,140,0.12)",color:sc}},s.riskOff===null?"—":s.riskOff?"Risk Off":"Risk On")
+                );
+              })
+            )
+          ) : null
+      )
+    ),
+
+    /* ROW 2: Today + This Week */
+    /*#__PURE__*/React.createElement("div",{style:{display:"grid",gridTemplateColumns:bp.isMobile?"1fr":"1fr 1fr",gap:12}},
+      /*#__PURE__*/React.createElement(Card, null,
+        /*#__PURE__*/React.createElement("span",{className:"lbl",style:{marginBottom:12}},"Today — High Impact (3-4\u2605)"),
+        loading.calendar ? Spinner : errors.calendar ?
+          /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textDim}},errors.calendar) :
+          sessionEvs.map(function(se){
+            return /*#__PURE__*/React.createElement("div",{key:se.session.key,style:{marginBottom:12}},
+              /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:6,paddingBottom:4,borderBottom:"1px solid "+C.border}},
+                /*#__PURE__*/React.createElement("span",{style:{fontSize:8,color:C.textDim,fontFamily:"'Courier New',monospace"}},se.session.label),
+                se.events.length>0 && /*#__PURE__*/React.createElement("span",{style:{width:4,height:4,borderRadius:"50%",background:C.red,display:"inline-block"}})
+              ),
+              se.events.length===0 ?
+                /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:C.textDim,paddingLeft:8}},"No high-impact events") :
+                se.events.map(function(ev){
+                  return /*#__PURE__*/React.createElement("div",{key:ev.time+ev.name,style:{display:"flex",alignItems:"center",gap:6,marginBottom:5}},
+                    /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace",minWidth:36}},ev.time),
+                    /*#__PURE__*/React.createElement("span",{style:{fontSize:8,background:curCol(ev.cur),color:"#000",padding:"1px 4px",borderRadius:2,fontWeight:700,minWidth:24,textAlign:"center"}},ev.cur),
+                    /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.text,flex:1}},ev.name),
+                    ev.actual ?
+                      /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.green,fontFamily:"'Courier New',monospace"}},ev.actual) :
+                      /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace"}},ev.forecast)
+                  );
+                })
+            );
+          })
+      ),
+      /*#__PURE__*/React.createElement(Card, null,
+        /*#__PURE__*/React.createElement("span",{className:"lbl",style:{marginBottom:12}},"This Week — High Impact (3-4\u2605)"),
+        loading.calendar ? Spinner : errors.calendar ?
+          /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textDim}},errors.calendar) :
+          weekDates.length===0 ?
+            /*#__PURE__*/React.createElement("div",{style:{color:C.textDim,fontSize:10}},"No high-impact events this week") :
+            weekDates.map(function(date){
+              var evs = calData.byDate[date];
+              var isToday = date===todayStr;
+              return /*#__PURE__*/React.createElement("div",{key:date,style:{marginBottom:10}},
+                /*#__PURE__*/React.createElement("div",{style:{fontSize:9,color:isToday?C.accent:C.textDim,fontWeight:isToday?700:400,marginBottom:4,display:"flex",alignItems:"center",gap:6}},
+                  evs[0].day,
+                  isToday&&/*#__PURE__*/React.createElement("span",{style:{fontSize:8,background:C.accent,color:isDark?"#000":"#fff",padding:"1px 5px",borderRadius:3}},"TODAY")
+                ),
+                evs.map(function(ev){
+                  return /*#__PURE__*/React.createElement("div",{key:ev.time+ev.name,style:{display:"flex",alignItems:"center",gap:6,paddingLeft:8,marginBottom:3}},
+                    /*#__PURE__*/React.createElement("span",{style:{fontSize:8,color:C.textDim,fontFamily:"'Courier New',monospace",minWidth:32}},ev.time),
+                    /*#__PURE__*/React.createElement("span",{style:{fontSize:8,background:curCol(ev.cur),color:"#000",padding:"1px 4px",borderRadius:2,fontWeight:700}},ev.cur),
+                    /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.text,flex:1}},ev.name),
+                    /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace"}},ev.forecast)
+                  );
+                })
+              );
+            })
+      )
+    ),
+
+    /* ROW 3: Sentiment + COT */
+    /*#__PURE__*/React.createElement("div",{style:{display:"grid",gridTemplateColumns:bp.isMobile?"1fr":"1fr 1fr",gap:12}},
+      /*#__PURE__*/React.createElement(Card, null,
+        /*#__PURE__*/React.createElement("span",{className:"lbl",style:{marginBottom:12}},"Retail Sentiment — MyFxBook"),
+        loading.sentiment ? Spinner :
+        errors.sentiment==='configure' ?
+          /*#__PURE__*/React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:6,padding:"12px 0"}},
+            /*#__PURE__*/React.createElement("span",{style:{fontSize:11,color:C.textDim}},"Connect your MyFxBook account"),
+            /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textDim}},"Settings \u2192 Add MyFxBook email + password")
+          ) :
+        errors.sentiment ?
+          /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textDim}},errors.sentiment) :
+        sentiment ? sentiment.map(function(r){
+          var signal = r.long>65?"Inst. likely SHORT":r.long<35?"Inst. likely LONG":"Mixed";
+          var sc = r.long>65?C.red:r.long<35?C.green:C.textDim;
+          return /*#__PURE__*/React.createElement("div",{key:r.pair,style:{marginBottom:12}},
+            /*#__PURE__*/React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}},
+              /*#__PURE__*/React.createElement("span",{style:{fontFamily:"'Bebas Neue'",fontSize:13,letterSpacing:".06em",color:C.text}},r.pair),
+              /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:sc}},signal)
+            ),
+            /*#__PURE__*/React.createElement("div",{style:{display:"flex",height:5,borderRadius:3,overflow:"hidden",marginBottom:3}},
+              /*#__PURE__*/React.createElement("div",{style:{width:r.long+"%",background:C.green}}),
+              /*#__PURE__*/React.createElement("div",{style:{width:r.short+"%",background:C.red}})
+            ),
+            /*#__PURE__*/React.createElement("div",{style:{display:"flex",justifyContent:"space-between"}},
+              /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.green}},"Long "+r.long+"%"),
+              /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.red}},"Short "+r.short+"%")
+            )
+          );
+        }) : null
+      ),
+      /*#__PURE__*/React.createElement(Card, null,
+        /*#__PURE__*/React.createElement("span",{className:"lbl",style:{marginBottom:12}},"COT \u2014 Futures Positioning (CFTC)"),
+        /*#__PURE__*/React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:10}},
+          [{label:"EUR Futures",net:45231,wow:2341,bullish:true},{label:"GBP Futures",net:-12456,wow:-890,bullish:false}].map(function(c){
+            var col=c.bullish?C.green:C.red, wc=c.wow>0?C.green:C.red;
+            return /*#__PURE__*/React.createElement("div",{key:c.label,style:{padding:"12px 14px",background:C.surfaceHigh,borderRadius:8}},
+              /*#__PURE__*/React.createElement("div",{style:{fontSize:9,color:C.textDim,letterSpacing:".08em",marginBottom:6}},c.label),
+              /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"baseline",gap:8,marginBottom:4}},
+                /*#__PURE__*/React.createElement("span",{style:{fontFamily:"'Bebas Neue'",fontSize:22,color:col,lineHeight:1}},(c.net>0?"+":"")+c.net.toLocaleString()),
+                /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textDim}},"net contracts")
+              ),
+              /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:col,marginBottom:4}},c.bullish?"Net Long — Institutional Bullish":"Net Short — Institutional Bearish"),
+              /*#__PURE__*/React.createElement("div",{style:{fontSize:9,color:wc}},"WoW: "+(c.wow>0?"+":"")+c.wow.toLocaleString()+(c.wow>0?" ▲":" ▼"))
+            );
+          })
+        ),
+        /*#__PURE__*/React.createElement("div",{style:{fontSize:9,color:C.textDim,borderTop:"1px solid "+C.border,paddingTop:8,marginTop:10}},"Source: CFTC \u00b7 Weekly \u00b7 Live data coming soon")
+      )
+    )
+  );
+}
+/* ── END MACRO TAB ─────────────────────────────────────────────────────────── */
 function DotGrid(_ref_dg) {
   var _tctx = React.useContext(ThemeCtx);
   var isDark = (_ref_dg && _ref_dg.isDark !== undefined) ? _ref_dg.isDark : _tctx.isDark;
@@ -5283,6 +5624,12 @@ function NVJournal() {
   var _usePwNew = useState(""), _usePwNew2 = _slicedToArray(_usePwNew, 2), pwNew = _usePwNew2[0], setPwNew = _usePwNew2[1];
   var _usePwConf = useState(""), _usePwConf2 = _slicedToArray(_usePwConf, 2), pwConf = _usePwConf2[0], setPwConf = _usePwConf2[1];
   var _usePwErr = useState(""), _usePwErr2 = _slicedToArray(_usePwErr, 2), pwErr = _usePwErr2[0], setPwErr = _usePwErr2[1];
+  var _useMfxEmail = useState(function(){ try{ return localStorage.getItem('nv_mfxbook_email')||''; }catch(e){ return ''; } }), _useMfxEmail2 = _slicedToArray(_useMfxEmail, 2), mfxEmail = _useMfxEmail2[0], setMfxEmail = _useMfxEmail2[1];
+  var _useMfxPass = useState(function(){ try{ return localStorage.getItem('nv_mfxbook_pass')||''; }catch(e){ return ''; } }), _useMfxPass2 = _slicedToArray(_useMfxPass, 2), mfxPass = _useMfxPass2[0], setMfxPass = _useMfxPass2[1];
+  function saveMfxCreds() {
+    try{ localStorage.setItem('nv_mfxbook_email', mfxEmail); localStorage.setItem('nv_mfxbook_pass', mfxPass); localStorage.removeItem('nv_mfxbook_session'); }catch(e){}
+    showToast("MyFxBook credentials saved");
+  }
   function submitPwChange() {
     if (nvHash(pwCur) !== nvGetHash()) { setPwErr("Current password incorrect"); return; }
     if (pwNew.length < 4) { setPwErr("New password too short"); return; }
@@ -8494,6 +8841,13 @@ function NVJournal() {
       fontWeight: dst ? 700 : 400
     }
   }, dst ? "ON ✓" : "OFF")), /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", alignItems: "center", gap: 8 }
+  },
+    /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: C.textMid } }, "MyFxBook"),
+    /*#__PURE__*/React.createElement("input", { type: "email", placeholder: "Email", value: mfxEmail, onChange: function(e){ setMfxEmail(e.target.value); }, style: { width: 130, padding: "4px 8px", background: C.inputBg, border: "1px solid " + C.border, borderRadius: 5, color: C.text, fontSize: 11, fontFamily: F_MONO, outline: "none" } }),
+    /*#__PURE__*/React.createElement("input", { type: "password", placeholder: "Password", value: mfxPass, onChange: function(e){ setMfxPass(e.target.value); }, onKeyDown: function(e){ if(e.key==="Enter") saveMfxCreds(); }, style: { width: 100, padding: "4px 8px", background: C.inputBg, border: "1px solid " + C.border, borderRadius: 5, color: C.text, fontSize: 11, fontFamily: F_MONO, outline: "none" } }),
+    /*#__PURE__*/React.createElement("button", { type: "button", onClick: saveMfxCreds, style: { padding: "4px 10px", background: C.green + "22", border: "1px solid " + C.green, borderRadius: 5, color: C.green, fontSize: 11, fontFamily: F_MONO, cursor: "pointer" } }, "Save")
+  ), /*#__PURE__*/React.createElement("div", {
     style: {
       marginLeft: "auto",
       display: "flex",
@@ -8841,7 +9195,8 @@ function NVJournal() {
       flexDirection: "column",
       gap: 12
     }
-  }, /*#__PURE__*/React.createElement(Sect, null, "Performance Overview", dashView === "All" && /*#__PURE__*/React.createElement("span", {
+  },
+  /*#__PURE__*/React.createElement(Sect, null, "Performance Overview", dashView === "All" && /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 11,
       color: C.textDim,
@@ -9747,1063 +10102,9 @@ function NVJournal() {
     /*#__PURE__*/React.createElement("line", { x1: 3, y1: 9, x2: 21, y2: 9, stroke: C.textDim, strokeWidth: 1.5 }),
     /*#__PURE__*/React.createElement("line", { x1: 8, y1: 2, x2: 8, y2: 6, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
     /*#__PURE__*/React.createElement("line", { x1: 16, y1: 2, x2: 16, y2: 6, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" })
-  ), /*#__PURE__*/React.createElement(EmptyState, { svgKey: "days", title: "No days logged yet", hint: "Log your daily bias to track accuracy over time" })))), tab === "Log Trade" && /*#__PURE__*/React.createElement("div", {
-    className: "tab-panel",
-    style: {
-      position: "relative",
-      paddingRight: bp.isMobile ? 0 : 314
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 12
-    }
-  }, /*#__PURE__*/React.createElement(Sect, null, "Log Setup / Trade"), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("span", {
-    className: "lbl",
-    style: {
-      marginBottom: 10
-    }
-  }, "Setup Info"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: bp.isMobile ? "1fr 1fr" : "repeat(4,1fr)",
-      gap: 10
-    }
-  }, /*#__PURE__*/React.createElement(Fld, {
-    label: "Date"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    value: tf.date,
-    onChange: function onChange(e) {
-      return updTf("date", e.target.value);
-    }
-  })), /*#__PURE__*/React.createElement(Fld, {
-    label: "Pair"
-  }, /*#__PURE__*/React.createElement("select", {
-    value: tf.pair,
-    onChange: function onChange(e) {
-      return updTf("pair", e.target.value);
-    }
-  }, PAIRS.map(function (p) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: p
-    }, p);
-  }))), /*#__PURE__*/React.createElement(Fld, {
-    label: "Session"
-  }, /*#__PURE__*/React.createElement("select", {
-    value: tf.session,
-    onChange: function onChange(e) {
-      return updTf("session", e.target.value);
-    }
-  }, SESSIONS.map(function (s) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: s,
-      value: s
-    }, SL(s));
-  }))), /*#__PURE__*/React.createElement(Fld, {
-    label: "Direction"
-  }, /*#__PURE__*/React.createElement("select", {
-    value: tf.direction,
-    onChange: function onChange(e) {
-      return updTf("direction", e.target.value);
-    }
-  }, DIRECTIONS.map(function (d) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: d
-    }, d);
-  }))))), /*#__PURE__*/React.createElement(Card, { style: { borderLeft: "3px solid ".concat(C.accent), paddingLeft: 13 } }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: 10
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "lbl",
-    style: {
-      margin: 0
-    }
-  }, "HTF Bias + Candle Position"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 9,
-      color: C.accent
-    }
-  }, "\u2605\u2605\u2605")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(3,1fr)",
-      gap: 10,
-      marginBottom: 10
-    }
-  }, [["Daily Bias", "daily_bias"], ["H4 Bias", "h4_bias"], ["H1 Bias", "h1_bias"]].map(function (_ref91) {
-    var _ref92 = _slicedToArray(_ref91, 2),
-      lbl = _ref92[0],
-      key = _ref92[1];
-    return /*#__PURE__*/React.createElement(Fld, {
-      key: key,
-      label: lbl
-    }, /*#__PURE__*/React.createElement("select", {
-      value: tf[key],
-      onChange: function onChange(e) {
-        return updTf(key, e.target.value);
-      }
-    }, BIAS_OPTS.map(function (b) {
-      return /*#__PURE__*/React.createElement("option", {
-        key: b
-      }, b);
-    })));
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(3,1fr)",
-      gap: 10,
-      marginBottom: 10
-    }
-  }, [["Daily Candle", "daily_candle"], ["H4 Candle", "h4_candle"], ["H1 Candle", "h1_candle"]].map(function (_ref93) {
-    var _ref94 = _slicedToArray(_ref93, 2),
-      lbl = _ref94[0],
-      key = _ref94[1];
-    return /*#__PURE__*/React.createElement(Fld, {
-      key: key,
-      label: lbl
-    }, /*#__PURE__*/React.createElement("select", {
-      value: tf[key],
-      onChange: function onChange(e) {
-        updTf(key, e.target.value);
-        if (e.target.value === "C5+") updTf("trade_taken", false);
-      },
-      style: {
-        borderColor: tf[key] === "C5+" ? C.red : C.border,
-        color: tf[key] === "C5+" ? C.red : C.text
-      }
-    }, CANDLE_POS.map(function (c) {
-      return /*#__PURE__*/React.createElement("option", {
-        key: c,
-        value: c
-      }, c, c === "C5+" ? " — NOT TRADEABLE" : "");
-    })));
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "8px 12px",
-      background: isDark ? "#000" : C.surfaceHigh,
-      borderRadius: 6,
-      border: "1px solid ".concat(C.border),
-      display: "flex",
-      alignItems: "center",
-      gap: 12,
-      marginBottom: 10
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 10,
-      color: C.textMid,
-      textTransform: "uppercase",
-      flexShrink: 0
-    }
-  }, "5M"), /*#__PURE__*/React.createElement(Chk, {
-    label: "5M CISD Confirmed",
-    checked: tf.ltf_5m_cisd,
-    onChange: function onChange() {
-      return togConf("ltf_5m_cisd");
-    }
-  }), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 10,
-      color: C.textDim,
-      marginLeft: "auto",
-      whiteSpace: "nowrap"
-    }
-  }, "CISD only on 5M")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "5px 10px",
-      borderRadius: 5,
-      background: isDark ? "#000" : C.surfaceHigh,
-      border: "1px solid ".concat(C.border),
-      fontSize: 11,
-      display: "flex",
-      gap: 12,
-      flexWrap: "wrap"
-    }
-  }, function () {
-    var dir = tf.direction === "Long" ? "Bullish" : "Bearish";
-    var dOk = tf.daily_bias === dir,
-      h4Ok = tf.h4_bias === dir,
-      h1Ok = tf.h1_bias === dir;
-    var full = dOk && h4Ok && h1Ok,
-      h4h1 = h4Ok && h1Ok && !dOk,
-      dh1 = dOk && h1Ok && !h4Ok;
-    var two = full || h4h1 || dh1;
-    if (full) return /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.green
-      }
-    }, "\u2713 Daily+H4+H1 \u2014 Full alignment \xB7 A+ eligible");
-    if (h4h1) return /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.blue
-      }
-    }, "\u26A0 H4+H1 aligned \xB7 Max grade: A");
-    if (dh1) return /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.blue
-      }
-    }, "\u26A0 Daily+H1 aligned \xB7 Max grade: A");
-    if (h1Ok) return /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.red
-      }
-    }, "\u2717 H1 only \u2014 need one more HTF \xB7 Not tradeable");
-    return /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.red
-      }
-    }, "\u2717 H1 not aligned \u2014 not tradeable");
-  }(), [tf.daily_candle, tf.h4_candle, tf.h1_candle].some(function (c) {
-    return c === "C5+";
-  }) && /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: C.red
-    }
-  }, "\u26A0 C5+ detected"))), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: 10
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "lbl",
-    style: {
-      margin: 0
-    }
-  }, "Key Zone + H1 Phase"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 9,
-      color: C.accent
-    }
-  }, "REQUIRED FOR A/A+")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 10
-    }
-  }, /*#__PURE__*/React.createElement(Fld, {
-    label: "Key Zone"
-  }, /*#__PURE__*/React.createElement("select", {
-    value: tf.key_zone,
-    onChange: function onChange(e) {
-      return updTf("key_zone", e.target.value);
-    }
-  }, KEY_ZONES.map(function (k) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: k
-    }, k);
-  }))), /*#__PURE__*/React.createElement(Fld, {
-    label: "H1 Market Phase"
-  }, /*#__PURE__*/React.createElement("select", {
-    value: tf.h1_phase || "Consolidation",
-    onChange: function onChange(e) {
-      return updTf("h1_phase", e.target.value);
-    },
-    style: {
-      borderColor: tf.h1_phase === "Expansion" ? C.green : tf.h1_phase === "Continuation" ? C.blue : C.border,
-      color: tf.h1_phase === "Expansion" ? C.green : tf.h1_phase === "Continuation" ? C.blue : C.text
-    }
-  }, H1_PHASES.map(function (p) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: p,
-      value: p
-    }, p, p === "Expansion" ? " +2pts" : p === "Continuation" ? " +1pt" : " 0pts");
-  })))), tf.key_zone === "None" && /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 6,
-      fontSize: 10,
-      color: C.red,
-      fontWeight: 600
-    }
-  }, "\u26A0 No Key Zone \u2014 cannot grade A or A+")), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: 12
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "lbl",
-    style: {
-      margin: 0
-    }
-  }, "Confluences"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 8,
-      alignItems: "center"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      fontFamily: F_MONO,
-      color: C.textDim
-    }
-  }, gradeDisplay.score, "/", gradeDisplay.maxPts || 35, "pts"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 9,
-      letterSpacing: ".12em",
-      textTransform: "uppercase",
-      color: C.textDim,
-      fontWeight: 600,
-      marginBottom: 6
-    }
-  }, "Major Signals \u2014 4pts each"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 7,
-      marginBottom: 10
-    }
-  }, [{
-    key: "sweep_h4",
-    label: "Sweep H4"
-  }, {
-    key: "sweep_h1",
-    label: "Sweep H1"
-  }].map(function (c) {
-    return /*#__PURE__*/React.createElement(Chk, {
-      key: c.key,
-      label: c.label,
-      checked: tf[c.key],
-      onChange: function onChange() {
-        return togConf(c.key);
-      },
-      highlight: tf[c.key] ? isDark ? "#fff" : "#000" : undefined
-    });
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 7,
-      padding: "8px 10px",
-      borderRadius: 7,
-      border: "1px solid ".concat(tf.smt_h4 ? C.accent : C.border),
-      background: tf.smt_h4 ? C.accentGlow : "transparent"
-    }
-  }, /*#__PURE__*/React.createElement(Chk, {
-    label: "SMT H4",
-    checked: tf.smt_h4,
-    onChange: function onChange() {
-      togConf("smt_h4");
-      if (tf.smt_h4) updTf("smt_h4_pair", "");
-    },
-    highlight: tf.smt_h4 ? isDark ? "#fff" : "#000" : undefined
-  }), tf.smt_h4 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 8,
-      display: "flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 9,
-      color: C.textDim,
-      whiteSpace: "nowrap"
-    }
-  }, "vs"), SMT_PAIRS.map(function (p) {
-    return /*#__PURE__*/React.createElement("button", {
-      type: "button",
-      key: p,
-      onClick: function onClick() {
-        return updTf("smt_h4_pair", tf.smt_h4_pair === p ? "" : p);
-      },
-      style: {
-        padding: "3px 10px",
-        borderRadius: 5,
-        border: "1px solid ".concat(tf.smt_h4_pair === p ? C.accent : C.border),
-        background: tf.smt_h4_pair === p ? C.accentGlow : "transparent",
-        color: tf.smt_h4_pair === p ? C.accent : C.textDim,
-        fontSize: 11,
-        cursor: "pointer",
-        fontFamily: F_MONO,
-        fontWeight: tf.smt_h4_pair === p ? 700 : 400
-      }
-    }, p);
-  }))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 12,
-      padding: "8px 10px",
-      borderRadius: 7,
-      border: "1px solid ".concat(tf.smt_h1 ? C.accent : C.border),
-      background: tf.smt_h1 ? C.accentGlow : "transparent"
-    }
-  }, /*#__PURE__*/React.createElement(Chk, {
-    label: "SMT H1",
-    checked: tf.smt_h1,
-    onChange: function onChange() {
-      togConf("smt_h1");
-      if (tf.smt_h1) updTf("smt_h1_pair", "");
-    },
-    highlight: tf.smt_h1 ? isDark ? "#fff" : "#000" : undefined
-  }), tf.smt_h1 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 8,
-      display: "flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 9,
-      color: C.textDim,
-      whiteSpace: "nowrap"
-    }
-  }, "vs"), SMT_PAIRS.map(function (p) {
-    return /*#__PURE__*/React.createElement("button", {
-      type: "button",
-      key: p,
-      onClick: function onClick() {
-        return updTf("smt_h1_pair", tf.smt_h1_pair === p ? "" : p);
-      },
-      style: {
-        padding: "3px 10px",
-        borderRadius: 5,
-        border: "1px solid ".concat(tf.smt_h1_pair === p ? C.accent : C.border),
-        background: tf.smt_h1_pair === p ? C.accentGlow : "transparent",
-        color: tf.smt_h1_pair === p ? C.accent : C.textDim,
-        fontSize: 11,
-        cursor: "pointer",
-        fontFamily: F_MONO,
-        fontWeight: tf.smt_h1_pair === p ? 700 : 400
-      }
-    }, p);
-  }))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 9,
-      letterSpacing: ".12em",
-      textTransform: "uppercase",
-      color: C.textDim,
-      fontWeight: 600,
-      marginBottom: 6
-    }
-  }, "Required for A / A+ \xA0", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: gradeDisplay.fullAlign ? C.green : C.textDim,
-      fontWeight: 400
-    }
-  }, gradeDisplay.fullAlign ? "· Full align ✓ — A+ possible" : "· Partial align — max grade A")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 12,
-      padding: "8px 10px",
-      borderRadius: 7,
-      border: "1px solid ".concat(tf.cisd_h1 ? C.green : C.red + "55"),
-      background: tf.cisd_h1 ? isDark ? "rgba(61,214,140,0.05)" : "rgba(26,110,53,0.04)" : isDark ? "rgba(240,100,100,0.04)" : "rgba(192,57,43,0.03)"
-    }
-  }, /*#__PURE__*/React.createElement(Chk, {
-    label: "CISD H1".concat(tf.cisd_h1 ? " ✓" : " — MISSING"),
-    checked: tf.cisd_h1,
-    onChange: function onChange() {
-      return togConf("cisd_h1");
-    },
-    highlight: tf.cisd_h1 ? C.green : C.red
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 9,
-      letterSpacing: ".12em",
-      textTransform: "uppercase",
-      color: C.textDim,
-      fontWeight: 600,
-      marginBottom: 6
-    }
-  }, "Supporting Confluences"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 7
-    }
-  }, [{
-    key: "cisd_h4",
-    label: "CISD H4",
-    pts: 2
-  }, {
-    key: "displacement",
-    label: "Displacement",
-    pts: 2
-  }, {
-    key: "discount_prem",
-    label: "Premium/Discount",
-    pts: 1
-  }, {
-    key: "psp",
-    label: "PSP",
-    pts: 1
-  }].map(function (c) {
-    return /*#__PURE__*/React.createElement(Chk, {
-      key: c.key,
-      label: "".concat(c.label, "  +").concat(c.pts, "pt").concat(c.pts > 1 ? "s" : ""),
-      checked: tf[c.key],
-      onChange: function onChange() {
-        return togConf(c.key);
-      },
-      highlight: C.blue
-    });
-  }), /*#__PURE__*/React.createElement(Chk, {
-    label: "5M CISD  +2pts",
-    checked: tf.ltf_5m_cisd,
-    onChange: function onChange() {
-      return togConf("ltf_5m_cisd");
-    },
-    highlight: tf.ltf_5m_cisd && gradeDisplay.fullAlign ? C.green : C.blue
-  }))), /*#__PURE__*/React.createElement(Card, {
-    style: {
-      border: "1px solid ".concat(gradeDisplay.blocked ? C.red : gradeDisplay.grade === "A+" ? C.accentDim : gradeDisplay.grade === "A" ? C.blue + "44" : C.border),
-      minHeight: 280
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: 12
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "lbl",
-    style: {
-      margin: 0
-    }
-  }, "Execution"), gradeDisplay.blocked && /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: C.red,
-      fontWeight: 700
-    }
-  }, "HARD BLOCK"), !gradeDisplay.blocked && gradeDisplay.grade === "B" && /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: C.yellow,
-      fontWeight: 700
-    }
-  }, "B \u2014 LOW QUALITY")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 20,
-      marginBottom: 14,
-      alignItems: "center"
-    }
-  }, [tf.h4_candle, tf.h1_candle, tf.daily_candle].some(function (c) {
-    return c === "C5+";
-  }) ? /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 10,
-      padding: "8px 12px",
-      background: C.yellow + "11",
-      border: "1px solid ".concat(C.yellow, "44"),
-      borderRadius: 7
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      width: 34,
-      height: 18,
-      borderRadius: 9,
-      background: C.border,
-      position: "relative",
-      flexShrink: 0,
-      opacity: 0.4
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: "absolute",
-      top: 2,
-      left: 2,
-      width: 14,
-      height: 14,
-      borderRadius: 7,
-      background: C.textDim
-    }
-  })), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: C.yellow,
-      fontWeight: 600
-    }
-  }, "\uD83D\uDD12 Trade Taken locked \u2014 C5+ is not tradeable")) : /*#__PURE__*/React.createElement(Tog, {
-    label: "Trade Taken",
-    checked: tf.trade_taken,
-    onChange: function onChange() {
-      return updTf("trade_taken", !tf.trade_taken);
-    }
-  })), tf.trade_taken ? /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 10,
-      marginBottom: 10
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 10
-    }
-  }, /*#__PURE__*/React.createElement(Fld, {
-    label: "R Result"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    step: "0.1",
-    placeholder: "e.g. 2.5 or -1",
-    value: tf.r_result,
-    onChange: function onChange(e) {
-      return updTf("r_result", e.target.value);
-    }
-  })), /*#__PURE__*/React.createElement(Fld, {
-    label: "Outcome"
-  }, /*#__PURE__*/React.createElement("select", {
-    value: tf.outcome,
-    onChange: function onChange(e) {
-      return (function(v) {
-        updTf("outcome", v);
-        if (!tf.r_result || tf.r_result === "") {
-          if (v === "W") updTf("r_result", "2");
-          else if (v === "L") updTf("r_result", "-1");
-          else if (v === "BE") updTf("r_result", "0");
-        }
-      })(e.target.value);
-    }
-  }, OUTCOMES.map(function (o) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: o
-    }, o);
-  })))), /*#__PURE__*/React.createElement(Tog, {
-    label: "Hesitation on entry?",
-    checked: tf.hesitation,
-    onChange: function onChange() {
-      return updTf("hesitation", !tf.hesitation);
-    }
-  })) : /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 10,
-      marginBottom: 10
-    }
-  }, /*#__PURE__*/React.createElement(Fld, {
-    label: "No-Trade Reason"
-  }, /*#__PURE__*/React.createElement("select", {
-    value: tf.no_trade_reason,
-    onChange: function onChange(e) {
-      return updTf("no_trade_reason", e.target.value);
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: ""
-  }, "Select reason..."), NO_TRADE_R.map(function (r) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: r
-    }, r);
-  }))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "10px 12px",
-      background: isDark ? "#000" : C.surfaceHigh,
-      borderRadius: 7,
-      border: "1px solid ".concat(C.blue, "33")
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 9,
-      letterSpacing: ".12em",
-      textTransform: "uppercase",
-      color: C.blue,
-      fontWeight: 600,
-      marginBottom: 8
-    }
-  }, "Hypothetical Result \u2014 What Would Have Happened"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 10
-    }
-  }, /*#__PURE__*/React.createElement(Fld, {
-    label: "Hypo R"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    step: "0.1",
-    placeholder: "e.g. 2.5 or -1",
-    value: tf.hypo_result,
-    onChange: function onChange(e) {
-      return updTf("hypo_result", e.target.value);
-    }
-  })), /*#__PURE__*/React.createElement(Fld, {
-    label: "Hypo Outcome"
-  }, /*#__PURE__*/React.createElement("select", {
-    value: tf.hypo_outcome,
-    onChange: function onChange(e) {
-      return (function(v) {
-        updTf("hypo_outcome", v);
-        if (!tf.hypo_result || tf.hypo_result === "") {
-          if (v === "W") updTf("hypo_result", "2");
-          else if (v === "L") updTf("hypo_result", "-1");
-          else if (v === "BE") updTf("hypo_result", "0");
-        }
-      })(e.target.value);
-    }
-  }, ["W", "L", "BE"].map(function (o) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: o
-    }, o);
-  })))))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 10
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 9,
-      color: C.textDim,
-      letterSpacing: ".1em",
-      textTransform: "uppercase",
-      marginBottom: 6,
-      fontWeight: 600
-    }
-  }, "Chart Screenshot"), tf.chart_image ? /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: "relative"
-    }
-  }, /*#__PURE__*/React.createElement("img", {
-    src: tf.chart_image,
-    alt: "chart",
-    style: {
-      width: "100%",
-      borderRadius: 7,
-      border: "1px solid ".concat(C.border),
-      display: "block"
-    }
-  }), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: function onClick() {
-      return updTf("chart_image", "");
-    },
-    style: {
-      position: "absolute",
-      top: 6,
-      right: 6,
-      background: "rgba(0,0,0,0.7)",
-      border: "none",
-      color: "#fff",
-      borderRadius: 4,
-      padding: "2px 7px",
-      fontSize: 11,
-      cursor: "pointer"
-    }
-  }, "\u2715 Remove")) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    onDrop: (/*#__PURE__*/function () {
-      var _ref95 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee8(e) {
-        var file, url;
-        return _regenerator().w(function (_context8) {
-          while (1) switch (_context8.n) {
-            case 0:
-              e.preventDefault();
-              file = e.dataTransfer.files[0];
-              if (!file) {
-                _context8.n = 2;
-                break;
-              }
-              setImgUploadingForm(true);
-              _context8.n = 1;
-              return sbUploadImage(file, "tmp_" + Date.now());
-            case 1:
-              url = _context8.v;
-              if (url) updTf("chart_image", url);
-              setImgUploadingForm(false);
-            case 2:
-              return _context8.a(2);
-          }
-        }, _callee8);
-      }));
-      return function (_x10) {
-        return _ref95.apply(this, arguments);
-      };
-    }()),
-    onDragOver: function onDragOver(e) {
-      return e.preventDefault();
-    },
-    style: {
-      padding: "16px",
-      border: "1px dashed ".concat(C.border),
-      borderRadius: 7,
-      textAlign: "center",
-      cursor: "pointer",
-      background: isDark ? "#050505" : C.surfaceHigh
-    },
-    onClick: function onClick() {
-      return document.getElementById("img-log-upload").click();
-    }
-  }, imgUploadingForm ? /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 12,
-      color: C.textDim
-    }
-  }, "\u27F3 Uploading...") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 12,
-      color: C.textMid
-    }
-  }, "\uD83D\uDCF7 Ctrl+V anywhere \xB7 drag & drop \xB7 ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: C.blue,
-      textDecoration: "underline"
-    }
-  }, "click to upload file")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 8,
-      borderTop: "1px solid ".concat(C.border),
-      paddingTop: 8
-    }
-  }, /*#__PURE__*/React.createElement("a", {
-    href: "https://nvspotify0305-hub.github.io/nv-journal/template",
-    target: "_blank",
-    rel: "noopener noreferrer",
-    onClick: function onClick(e) {
-      return e.stopPropagation();
-    },
-    style: {
-      fontSize: 11,
-      color: C.textMid,
-      textDecoration: "none",
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 5
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "13",
-    height: "13",
-    viewBox: "0 0 200 200",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    style: {
-      opacity: 0.6
-    }
-  }, /*#__PURE__*/React.createElement("circle", {
-    cx: "100",
-    cy: "100",
-    r: "88",
-    stroke: "currentColor",
-    strokeWidth: "12",
-    fill: "none"
-  }), /*#__PURE__*/React.createElement("line", {
-    x1: "100",
-    y1: "42",
-    x2: "100",
-    y2: "148",
-    stroke: "currentColor",
-    strokeWidth: "11",
-    strokeLinecap: "round"
-  }), /*#__PURE__*/React.createElement("circle", {
-    cx: "100",
-    cy: "159",
-    r: "10",
-    fill: "currentColor"
-  }), /*#__PURE__*/React.createElement("rect", {
-    x: "30",
-    y: "58",
-    width: "20",
-    height: "72",
-    rx: "2",
-    fill: "currentColor"
-  }), /*#__PURE__*/React.createElement("rect", {
-    x: "80",
-    y: "58",
-    width: "20",
-    height: "72",
-    rx: "2",
-    fill: "currentColor"
-  }), /*#__PURE__*/React.createElement("polygon", {
-    points: "30,58 50,58 100,130 80,130",
-    fill: "currentColor"
-  }), /*#__PURE__*/React.createElement("polygon", {
-    points: "110,58 131,58 153,124 132,124",
-    fill: "currentColor"
-  }), /*#__PURE__*/React.createElement("polygon", {
-    points: "158,58 179,58 157,124 136,124",
-    fill: "currentColor"
-  })), /*#__PURE__*/React.createElement("span", null, "Create chart in NV Template \u2197"))))), /*#__PURE__*/React.createElement("input", {
-    id: "img-log-upload",
-    type: "file",
-    accept: "image/*",
-    style: {
-      display: "none"
-    },
-    onChange: (/*#__PURE__*/function () {
-      var _ref96 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee9(e) {
-        var file, url;
-        return _regenerator().w(function (_context9) {
-          while (1) switch (_context9.n) {
-            case 0:
-              file = e.target.files[0];
-              if (!file) {
-                _context9.n = 2;
-                break;
-              }
-              setImgUploadingForm(true);
-              _context9.n = 1;
-              return sbUploadImage(file, "tmp_" + Date.now());
-            case 1:
-              url = _context9.v;
-              if (url) updTf("chart_image", url);
-              setImgUploadingForm(false);
-            case 2:
-              return _context9.a(2);
-          }
-        }, _callee9);
-      }));
-      return function (_x11) {
-        return _ref96.apply(this, arguments);
-      };
-    }())
-  }))), /*#__PURE__*/React.createElement(Fld, {
-    label: "Notes"
-  }, /*#__PURE__*/React.createElement("textarea", {
-    rows: 2,
-    placeholder: "Optional notes...",
-    value: tf.notes,
-    onChange: function onChange(e) {
-      return updTf("notes", e.target.value);
-    }
-  }))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 10
-    }
-  }, tf.trade_taken && gradeDisplay.blocked && /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "8px 14px",
-      background: isDark ? "#1a0000" : "#fff0f0",
-      border: "1px solid ".concat(C.red),
-      borderRadius: 6,
-      fontSize: 11,
-      color: C.red,
-      fontWeight: 600
-    }
-  }, "\u274C ", gradeDisplay.blocked), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: saveTrade,
-    disabled: !!(tf.trade_taken && gradeDisplay.blocked),
-    style: {
-      padding: "10px 26px",
-      background: tf.trade_taken && gradeDisplay.blocked ? C.border : [tf.h4_candle, tf.h1_candle, tf.daily_candle].some(function (c) {
-        return c === "C5+";
-      }) && !tf.trade_taken ? C.yellow : gradeDisplay.grade === "A+" ? C.accent : gradeDisplay.grade === "A" ? C.blue : C.red + "22",
-      border: "1px solid ".concat(tf.trade_taken && gradeDisplay.blocked ? C.border : [tf.h4_candle, tf.h1_candle, tf.daily_candle].some(function (c) {
-        return c === "C5+";
-      }) && !tf.trade_taken ? C.yellow : gradeDisplay.grade === "A+" ? C.accent : gradeDisplay.grade === "A" ? C.blue : C.red),
-      color: tf.trade_taken && gradeDisplay.blocked ? C.textDim : [tf.h4_candle, tf.h1_candle, tf.daily_candle].some(function (c) {
-        return c === "C5+";
-      }) && !tf.trade_taken ? isDark ? "#000" : "#fff" : gradeDisplay.grade === "B" ? C.red : isDark ? "#000" : "#fff",
-      borderRadius: 7,
-      fontSize: 13,
-      fontWeight: 700,
-      letterSpacing: ".06em",
-      cursor: tf.trade_taken && gradeDisplay.blocked ? "not-allowed" : "pointer"
-    }
-  }, tf.trade_taken ? gradeDisplay.blocked ? "❌ BLOCKED" : "SAVE TRADE" : [tf.h4_candle, tf.h1_candle, tf.daily_candle].some(function (c) {
-    return c === "C5+";
-  }) ? "LOG C5+ OBSERVED" : gradeDisplay.grade === "B" ? "SAVE (B — Skipped)" : "SAVE (Skipped A/A+)"), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: function onClick() {
-      return setTf(INIT_TRADE(tz));
-    },
-    style: {
-      padding: "10px 16px",
-      background: "transparent",
-      border: "1px solid ".concat(C.border),
-      color: C.textDim,
-      borderRadius: 7,
-      fontSize: 12
-    }
-  }, "Reset"))), /*#__PURE__*/React.createElement("div", {
-    style: bp.isMobile ? {
-      position: "relative",
-      width: "100%",
-      marginTop: 12
-    } : {
-      position: "absolute",
-      top: 0,
-      right: 0,
-      width: 300,
-      height: "100%"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: bp.isMobile ? {} : {
-      position: "sticky",
-      top: 58
-    }
-  }, /*#__PURE__*/React.createElement(GradeMeter, {
-    gr: gradeDisplay,
-    C: C
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 10,
-      padding: "10px 14px",
-      background: isDark ? "#000" : C.surfaceHigh,
-      border: "1px solid ".concat(!gradeDisplay.blocked ? gradeDisplay.grade === "A+" ? C.accent : gradeDisplay.grade === "A" ? C.blue : C.yellow : C.red),
-      borderRadius: 8
-    }
-  }, gradeDisplay.blocked && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: C.red,
-      fontWeight: 700,
-      marginBottom: 3
-    }
-  }, "\u274C ", gradeDisplay.blocked), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      color: C.textMid,
-      lineHeight: 1.5
-    }
-  }, "Cannot trade this setup.")), !gradeDisplay.blocked && gradeDisplay.grade === "A+" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: C.accent,
-      fontWeight: 700,
-      marginBottom: 3
-    }
-  }, "A+ \u2014 ", gradeDisplay.modelType), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      color: C.textMid,
-      lineHeight: 1.5
-    }
-  }, "Full stack confirmed. Execute with confidence.")), !gradeDisplay.blocked && gradeDisplay.grade === "A" && function () {
-    var missingAp = [];
-    if (!gradeDisplay.fullAlign) missingAp.push("full Daily+H4+H1 alignment");
-    if (!tf.cisd_h1) missingAp.push("CISD H1");
-    if (!tf.ltf_5m_cisd) missingAp.push("5M CISD");
-    if (!gradeDisplay.comboSweep) missingAp.push("sweep combo");
-    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 12,
-        color: C.blue,
-        fontWeight: 700,
-        marginBottom: 3
-      }
-    }, "A \u2014 ", gradeDisplay.modelType), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11,
-        color: C.textMid,
-        lineHeight: 1.5
-      }
-    }, gradeDisplay.fullAlign ? "Missing for A+: ".concat(missingAp.join(", ")) : "H4+H1 or Daily+H1 only — max grade A."));
-  }(), !gradeDisplay.blocked && gradeDisplay.grade === "B" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: C.yellow,
-      fontWeight: 700,
-      marginBottom: 3
-    }
-  }, "B \u2014 Low Quality"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      color: C.textMid,
-      lineHeight: 1.5
-    }
-  }, "Tradeable but missing CISD H1 or Key Zone.")))))),
+  ), /*#__PURE__*/React.createElement(EmptyState, { svgKey: "days", title: "No days logged yet", hint: "Log your daily bias to track accuracy over time" })))),
+
+  tab === "Macro" && /*#__PURE__*/React.createElement(MacroTab, null),
   tab === "Prop Firms" && /*#__PURE__*/React.createElement("div", {
     className: "tab-panel",
     style: { display:"flex", flexDirection:"column", gap:12 }
