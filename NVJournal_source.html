@@ -5185,13 +5185,30 @@ function MacroTab() {
               se.events.length===0 ?
                 /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:C.textDim,paddingLeft:8}},"No high-impact events") :
                 se.events.map(function(ev){
-                  return /*#__PURE__*/React.createElement("div",{key:ev.time+ev.name,style:{display:"flex",alignItems:"center",gap:6,marginBottom:5}},
-                    /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace",minWidth:36}},ev.time),
-                    /*#__PURE__*/React.createElement("span",{style:{fontSize:8,background:curCol(ev.cur),color:"#000",padding:"1px 4px",borderRadius:2,fontWeight:700,minWidth:24,textAlign:"center"}},ev.cur),
-                    /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.text,flex:1}},ev.name),
-                    ev.actual ?
-                      /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.green,fontFamily:"'Courier New',monospace"}},ev.actual) :
-                      /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace"}},ev.forecast)
+                  var hasActual = ev.actual && ev.actual !== '—';
+                  var actNum = parseFloat((ev.actual||'').replace(/[^0-9.\-]/g,''));
+                  var fcastNum = parseFloat((ev.forecast||'').replace(/[^0-9.\-]/g,''));
+                  var beat = hasActual && !isNaN(actNum) && !isNaN(fcastNum) ? actNum >= fcastNum : null;
+                  var actCol = beat === null ? C.green : beat ? C.green : C.red;
+                  return /*#__PURE__*/React.createElement("div",{key:ev.time+ev.name,style:{marginBottom:7,paddingBottom:7,borderBottom:"1px solid "+C.border+"44"}},
+                    /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:3}},
+                      /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace",minWidth:36}},ev.time),
+                      /*#__PURE__*/React.createElement("span",{style:{fontSize:8,background:curCol(ev.cur),color:"#000",padding:"1px 4px",borderRadius:2,fontWeight:700,minWidth:24,textAlign:"center"}},ev.cur),
+                      /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.text,flex:1}},ev.name),
+                      hasActual && /*#__PURE__*/React.createElement("span",{style:{fontSize:8,padding:"1px 5px",borderRadius:3,background:actCol+"22",color:actCol,fontWeight:700}},"\u2713 Released")
+                    ),
+                    /*#__PURE__*/React.createElement("div",{style:{display:"flex",gap:10,paddingLeft:44}},
+                      hasActual ?
+                        /*#__PURE__*/React.createElement(React.Fragment,null,
+                          /*#__PURE__*/React.createElement("span",{style:{fontSize:11,color:actCol,fontFamily:"'Courier New',monospace",fontWeight:700}},ev.actual),
+                          /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace"}},"F: "+(ev.forecast||'—')),
+                          /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace"}},"P: "+(ev.previous||'—'))
+                        ) :
+                        /*#__PURE__*/React.createElement(React.Fragment,null,
+                          /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textMid,fontFamily:"'Courier New',monospace"}},"F: "+(ev.forecast||'—')),
+                          /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace"}},"P: "+(ev.previous||'—'))
+                        )
+                    )
                   );
                 })
             );
@@ -5212,11 +5229,18 @@ function MacroTab() {
                   isToday&&/*#__PURE__*/React.createElement("span",{style:{fontSize:8,background:C.accent,color:isDark?"#000":"#fff",padding:"1px 5px",borderRadius:3}},"TODAY")
                 ),
                 evs.map(function(ev){
-                  return /*#__PURE__*/React.createElement("div",{key:ev.time+ev.name,style:{display:"flex",alignItems:"center",gap:6,paddingLeft:8,marginBottom:3}},
+                  var hasActual = ev.actual && ev.actual !== '—';
+                  var actNum = parseFloat((ev.actual||'').replace(/[^0-9.\-]/g,''));
+                  var fcastNum = parseFloat((ev.forecast||'').replace(/[^0-9.\-]/g,''));
+                  var beat = hasActual && !isNaN(actNum) && !isNaN(fcastNum) ? actNum >= fcastNum : null;
+                  var actCol = beat === null ? C.green : beat ? C.green : C.red;
+                  return /*#__PURE__*/React.createElement("div",{key:ev.time+ev.name,style:{display:"flex",alignItems:"center",gap:6,paddingLeft:8,marginBottom:4}},
                     /*#__PURE__*/React.createElement("span",{style:{fontSize:8,color:C.textDim,fontFamily:"'Courier New',monospace",minWidth:32}},ev.time),
                     /*#__PURE__*/React.createElement("span",{style:{fontSize:8,background:curCol(ev.cur),color:"#000",padding:"1px 4px",borderRadius:2,fontWeight:700}},ev.cur),
-                    /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.text,flex:1}},ev.name),
-                    /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace"}},ev.forecast)
+                    /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:hasActual?C.textMid:C.text,flex:1}},ev.name),
+                    hasActual ?
+                      /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:actCol,fontFamily:"'Courier New',monospace",fontWeight:700}},ev.actual) :
+                      /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace"}},"F: "+(ev.forecast||'—'))
                   );
                 })
               );
