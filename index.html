@@ -5873,7 +5873,7 @@ function NVJournal() {
       }
     },
       /*#__PURE__*/React.createElement("div", { style: { color: C.textMid, marginBottom: 2 } }, sorted[eqHover] ? sorted[eqHover].date : ""),
-      /*#__PURE__*/React.createElement("div", { style: { color: lc, fontWeight: 700 } }, (pts[eqHover] >= 0 ? "+" : "") + pts[eqHover].toFixed(2) + "R"),
+      /*#__PURE__*/React.createElement("div", { style: { color: pts[eqHover] >= 0 ? C.green : C.red, fontWeight: 700 } }, (pts[eqHover] >= 0 ? "+" : "") + pts[eqHover].toFixed(2) + "R"),
       /*#__PURE__*/React.createElement("div", { style: { color: C.textDim } }, sorted[eqHover] ? ((sorted[eqHover].pair || "") + " \xB7 " + (sorted[eqHover].direction || "")) : "")
     ),
     /*#__PURE__*/React.createElement("svg", {
@@ -5900,13 +5900,7 @@ function NVJournal() {
       stroke: C.border,
       strokeWidth: 1,
       strokeDasharray: "4 3"
-    }), /*#__PURE__*/React.createElement("text", {
-      x: p + 2, y: p + 8, fontSize: "8", fill: C.textDim, fontFamily: "JetBrains Mono,monospace", opacity: 0.7
-    }, mx > 0 ? "+".concat(mx.toFixed(1)) : mx.toFixed(1), "R"),
-    mn < 0 && /*#__PURE__*/React.createElement("text", {
-      x: p + 2, y: H - p - 2, fontSize: "8", fill: C.textDim, fontFamily: "JetBrains Mono,monospace", opacity: 0.7
-    }, mn.toFixed(1), "R"),
-    /*#__PURE__*/React.createElement("defs", null,
+    }),     /*#__PURE__*/React.createElement("defs", null,
       /*#__PURE__*/React.createElement("clipPath", { id: "eq-above-zero" },
         /*#__PURE__*/React.createElement("rect", { x: 0, y: 0, width: W, height: zy })
       ),
@@ -5924,27 +5918,9 @@ function NVJournal() {
       fill: lc
     }),
     eqHover !== null && /*#__PURE__*/React.createElement("g", null,
-      /*#__PURE__*/React.createElement("line", { x1: x(eqHover).toFixed(1), y1: p, x2: x(eqHover).toFixed(1), y2: H - p, stroke: lc, strokeWidth: "0.8", strokeDasharray: "3,3", opacity: "0.7" }),
+      /*#__PURE__*/React.createElement("line", { x1: x(eqHover).toFixed(1), y1: p, x2: x(eqHover).toFixed(1), y2: H - p, stroke: pts[eqHover] >= 0 ? C.green : C.red, strokeWidth: "0.8", strokeDasharray: "3,3", opacity: "0.7" }),
       /*#__PURE__*/React.createElement("circle", { cx: x(eqHover).toFixed(1), cy: y(pts[eqHover]).toFixed(1), r: "4", fill: pts[eqHover] >= 0 ? C.green : C.red, stroke: C.surface, strokeWidth: "1.5" })
-    ), uniqueMarkers.map(function (i) {
-      return /*#__PURE__*/React.createElement("g", {
-        key: i
-      }, /*#__PURE__*/React.createElement("line", {
-        x1: x(i),
-        y1: zy - 3,
-        x2: x(i),
-        y2: zy + 3,
-        stroke: C.border,
-        strokeWidth: 1
-      }), /*#__PURE__*/React.createElement("text", {
-        x: x(i),
-        y: H - 1,
-        textAnchor: "middle",
-        fontSize: "7",
-        fill: C.textDim,
-        fontFamily: "JetBrains Mono,monospace"
-      }, "T", i + 1));
-    }))), /*#__PURE__*/React.createElement("div", {
+    ))), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         justifyContent: "space-between",
