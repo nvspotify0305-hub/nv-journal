@@ -7244,6 +7244,7 @@ function NVJournal() {
     var saveMood = function saveMood(m) {
       setWMood(m);
       saveWeeklyField(reviewWeek, "mood", m);
+      showToast("Mindset saved");
     };
 
     // Build sorted list of all weeks that have trades
@@ -7829,34 +7830,12 @@ function NVJournal() {
       /*#__PURE__*/React.createElement("span", { className:"lbl", style:{margin:0} }, "Weekly Notes"),
       /*#__PURE__*/React.createElement("button", {
         type:"button",
-        disabled: aiNotesLoading,
         onClick: function() {
-          setAiNotesLoading(true);
-          var wTr = trades.filter(function(t){ return getWeekKey(t.date)===reviewWeek; });
-          var taken = wTr.filter(function(t){ return t.trade_taken; });
-          var m = calcMetrics(taken, true);
-          var wgr = wTr.map(function(t){ return Object.assign({},t,{_grade:t.grade||"B"}); });
-          var sessBkd = ["7AM","11AM","3PM"].map(function(s){
-            var st=taken.filter(function(t){return t.session===s;});
-            var sm=calcMetrics(st,true);
-            return s+": "+st.length+"T "+sm.totalR+"R "+sm.winRate+"%wr";
-          }).join(" | ");
-          var ruleBreaks=wgr.filter(function(t){return t._grade==="B"&&t.trade_taken;}).length;
-          var aPlus=wgr.filter(function(t){return t._grade==="A+";}).length;
-          var aGrade=wgr.filter(function(t){return t._grade==="A";}).length;
-          var prompt = "You are a trading coach reviewing a week of forex trading.\n\nWeek: "+reviewWeek+"\nSystem: NV-System (ICT concepts, liquidity sweeps, CISD, SMT, C2-C4 candle model)\nSessions: 7AM, 11AM, 3PM Dublin time\n\nData:\n- Total setups: "+wTr.length+" | A+: "+aPlus+" | A: "+aGrade+" | Rule breaks: "+ruleBreaks+"\n- Executed: "+taken.length+" | Total R: "+m.totalR+" | Win rate: "+m.winRate+"% | Expectancy: "+m.expectancy+"R\n- Sessions: "+sessBkd+"\n- Pairs: "+[...new Set(taken.map(function(t){return t.pair;}))].join(", ")+"\n\nWrite a concise weekly review (4-6 sentences). Cover: overall verdict, grade discipline, session standout or weakness, one pattern, one focus for next week. Second person. No bullets. Plain text only.";
-          fetch("https://api.anthropic.com/v1/messages", {
-            method:"POST",
-            headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:400,messages:[{role:"user",content:prompt}]})
-          }).then(function(r){return r.json();}).then(function(data){
-            var text=(data.content||[]).map(function(b){return b.text||"";}).join("");
-            if(text){setWNotes(text);saveWeeklyField(reviewWeek,"notes",text);}
-            setAiNotesLoading(false);
-          }).catch(function(){setAiNotesLoading(false);});
+          saveWeeklyField(reviewWeek, "notes", wNotes);
+          showToast("Notes saved");
         },
-        style:{ padding:"4px 12px", border:"1px solid ".concat(C.blue), borderRadius:6, background:aiNotesLoading?C.surfaceHigh:C.accentGlow, color:C.blue, fontSize:11, cursor:aiNotesLoading?"default":"pointer", fontWeight:500 }
-      }, aiNotesLoading ? "\u29f3 Generating..." : "\u2756 Generate AI notes")
+        style:{ padding:"4px 12px", border:"1px solid ".concat(C.border), borderRadius:6, background:"transparent", color:C.textMid, fontSize:11, cursor:"pointer", fontWeight:500 }
+      }, "Save")
     ),
     /*#__PURE__*/React.createElement("textarea", {
       value: wNotes,
@@ -9487,11 +9466,7 @@ function NVJournal() {
       gap: 12
     }
   }, function () {
-    var months = _toConsumableArray(new Set(trades.map(function (t) {
-      return t.date.slice(0, 7);
-    }))).sort(function (a, b) {
-      return b.localeCompare(a);
-    });
+    var months = _toConsumableArray(new Set(trades.map(function (t) { return t.date.slice(0, 7); }))).sort(function (a, b) { return b.localeCompare(a); });
     if (!months.length) return /*#__PURE__*/React.createElement("div", {
       style: { textAlign: "center", padding: "48px 20px" }
     }, /*#__PURE__*/React.createElement("svg", { width: 40, height: 40, viewBox: "0 0 24 24", fill: "none", style: { margin: "0 auto 10px", display: "block", opacity: 0.22 } },
@@ -9501,128 +9476,51 @@ function NVJournal() {
       /*#__PURE__*/React.createElement("line", { x1: 9, y1: 17, x2: 12, y2: 17, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" })
     ), /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: C.textDim, fontWeight: 600 } }, "No trades to review yet"),
     /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: C.textDim, marginTop: 4, opacity: 0.7 } }, "Log your first setup to see monthly performance"));
+    return null;
+  }(), /*#__PURE__*/React.createElement(WeeklyReview, null), function() {
+    var months = _toConsumableArray(new Set(trades.map(function (t) {
+      return t.date.slice(0, 7);
+    }))).sort(function (a, b) {
+      return b.localeCompare(a);
+    });
+    if (!months.length) return null;
     return /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("span", {
       className: "lbl",
-      style: {
-        marginBottom: 10
-      }
+      style: { marginBottom: 10 }
     }, "Monthly Performance"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        overflowX: "auto"
-      }
+      style: { overflowX: "auto" }
     }, /*#__PURE__*/React.createElement("table", {
-      style: {
-        width: "100%",
-        borderCollapse: "collapse",
-        fontSize: 11
-      }
+      style: { width: "100%", borderCollapse: "collapse", fontSize: 11 }
     }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
-      style: {
-        borderBottom: "1px solid ".concat(C.border)
-      }
+      style: { borderBottom: "1px solid ".concat(C.border) }
     }, ["Month", "Trades", "R", "Win%", "Exp", "A+", "A", "B", "B Taken"].map(function (h) {
       return /*#__PURE__*/React.createElement("th", {
         key: h,
-        style: {
-          padding: "5px 10px",
-          textAlign: "left",
-          fontSize: 9,
-          letterSpacing: ".1em",
-          textTransform: "uppercase",
-          color: C.textDim,
-          fontWeight: 600,
-          whiteSpace: "nowrap"
-        }
+        style: { padding: "5px 10px", textAlign: "left", fontSize: 9, letterSpacing: ".1em", textTransform: "uppercase", color: C.textDim, fontWeight: 600, whiteSpace: "nowrap" }
       }, h);
     }))), /*#__PURE__*/React.createElement("tbody", null, months.map(function (mo, i) {
-      var mTrades = trades.filter(function (t) {
-        return t.date.slice(0, 7) === mo;
-      });
-      var taken = mTrades.filter(function (t) {
-        return t.trade_taken;
-      });
+      var mTrades = trades.filter(function (t) { return t.date.slice(0, 7) === mo; });
+      var taken = mTrades.filter(function (t) { return t.trade_taken; });
       var m = calcMetrics(taken);
-      var aPlus = mTrades.filter(function (t) {
-        return t.grade === "A+";
-      }).length;
-      var aGrade = mTrades.filter(function (t) {
-        return t.grade === "A";
-      }).length;
-      var bGrade = mTrades.filter(function (t) {
-        return t.grade === "B";
-      }).length;
-      var ruleBreaks = mTrades.filter(function (t) {
-        return t.grade === "B" && t.trade_taken;
-      }).length;
+      var aPlus = mTrades.filter(function (t) { return t.grade === "A+"; }).length;
+      var aGrade = mTrades.filter(function (t) { return t.grade === "A"; }).length;
+      var bGrade = mTrades.filter(function (t) { return t.grade === "B"; }).length;
+      var ruleBreaks = mTrades.filter(function (t) { return t.grade === "B" && t.trade_taken; }).length;
       var rCol = m.totalR > 0 ? C.green : m.totalR < 0 ? C.red : C.textDim;
       return /*#__PURE__*/React.createElement("tr", {
         key: mo,
-        style: {
-          borderBottom: "1px solid ".concat(C.border),
-          background: i % 2 === 0 ? "transparent" : isDark ? "rgba(255,255,255,0.015)" : "rgba(0,0,0,0.01)"
-        }
-      }, /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: "7px 10px",
-          fontFamily: F_MONO,
-          color: C.text,
-          fontWeight: 600
-        }
-      }, mo), /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: "7px 10px",
-          fontFamily: F_MONO,
-          color: C.textMid
-        }
-      }, taken.length), /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: "7px 10px",
-          fontFamily: F_DISPLAY,
-          fontSize: 16,
-          color: rCol
-        }
-      }, m.totalR > 0 ? "+" : "", m.totalR, "R"), /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: "7px 10px",
-          fontFamily: F_MONO,
-          color: m.winRate >= 50 ? C.green : m.winRate > 0 ? C.red : C.textDim
-        }
-      }, taken.length ? "".concat(m.winRate, "%") : "—"), /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: "7px 10px",
-          fontFamily: F_MONO,
-          color: m.expectancy >= 0 ? C.green : C.red
-        }
-      }, taken.length ? "".concat(m.expectancy, "R") : "—"), /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: "7px 10px",
-          fontFamily: F_DISPLAY,
-          fontSize: 14,
-          color: C.gradeAp
-        }
-      }, aPlus), /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: "7px 10px",
-          fontFamily: F_DISPLAY,
-          fontSize: 14,
-          color: C.gradeA
-        }
-      }, aGrade), /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: "7px 10px",
-          fontFamily: F_DISPLAY,
-          fontSize: 14,
-          color: C.gradeB
-        }
-      }, bGrade), /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: "7px 10px",
-          fontFamily: F_MONO,
-          color: ruleBreaks === 0 ? C.green : C.red
-        }
-      }, ruleBreaks));
+        style: { borderBottom: "1px solid ".concat(C.border), background: i % 2 === 0 ? "transparent" : isDark ? "rgba(255,255,255,0.015)" : "rgba(0,0,0,0.01)" }
+      }, /*#__PURE__*/React.createElement("td", { style: { padding: "7px 10px", fontFamily: F_MONO, color: C.text, fontWeight: 600 } }, mo),
+      /*#__PURE__*/React.createElement("td", { style: { padding: "7px 10px", fontFamily: F_MONO, color: C.textMid } }, taken.length),
+      /*#__PURE__*/React.createElement("td", { style: { padding: "7px 10px", fontFamily: F_DISPLAY, fontSize: 16, color: rCol } }, m.totalR > 0 ? "+" : "", m.totalR, "R"),
+      /*#__PURE__*/React.createElement("td", { style: { padding: "7px 10px", fontFamily: F_MONO, color: m.winRate >= 50 ? C.green : m.winRate > 0 ? C.red : C.textDim } }, taken.length ? "".concat(m.winRate, "%") : "—"),
+      /*#__PURE__*/React.createElement("td", { style: { padding: "7px 10px", fontFamily: F_MONO, color: m.expectancy >= 0 ? C.green : C.red } }, taken.length ? "".concat(m.expectancy, "R") : "—"),
+      /*#__PURE__*/React.createElement("td", { style: { padding: "7px 10px", fontFamily: F_DISPLAY, fontSize: 14, color: C.gradeAp } }, aPlus),
+      /*#__PURE__*/React.createElement("td", { style: { padding: "7px 10px", fontFamily: F_DISPLAY, fontSize: 14, color: C.gradeA } }, aGrade),
+      /*#__PURE__*/React.createElement("td", { style: { padding: "7px 10px", fontFamily: F_DISPLAY, fontSize: 14, color: C.gradeB } }, bGrade),
+      /*#__PURE__*/React.createElement("td", { style: { padding: "7px 10px", fontFamily: F_MONO, color: ruleBreaks === 0 ? C.green : C.red } }, ruleBreaks));
     })))));
-  }(), /*#__PURE__*/React.createElement(WeeklyReview, null)), tab === "Days" && /*#__PURE__*/React.createElement("div", {
+  }()), tab === "Days" && /*#__PURE__*/React.createElement("div", {
     className: "tab-panel",
     style: {
       display: "flex",
