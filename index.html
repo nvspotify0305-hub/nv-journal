@@ -2567,6 +2567,7 @@ function CryptoTracker(_ref13) {
   var _rows$;
   var C = _ref13.C,
     isDark = _ref13.isDark;
+  var bp = useBreakpoint();
   var _useState11 = useState(function () {
       try {
         var s = localStorage.getItem("nv_crypto_v2");
@@ -2855,7 +2856,7 @@ function CryptoTracker(_ref13) {
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "220px 1fr",
+      gridTemplateColumns: bp.isMobile ? "1fr" : "220px 1fr",
       gap: 12
     }
   }, /*#__PURE__*/React.createElement("div", {
@@ -3852,6 +3853,7 @@ function PropFirmTracker(_ref_pft) {
   if (!activeAcct && accounts.length > 0) activeAcct = accounts[0];
   var metrics = activeAcct ? calcPropMetrics(activeAcct) : null;
   var firmCol = activeAcct ? ((PROP_FIRM_COLORS[activeAcct.firm] || PROP_FIRM_COLORS["Custom"])[isDark ? "dark" : "light"]) : C.green;
+  var bp = useBreakpoint();
   function meterColor(pct) { return pct >= 75 ? C.red : pct >= 50 ? C.yellow : C.green; }
   // Set first account active
   useEffect(function() {
@@ -4068,7 +4070,7 @@ function PropFirmTracker(_ref_pft) {
       )
     ),
     // C. Progress meters (4-col grid)
-    activeAcct && metrics && /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 } },
+    activeAcct && metrics && /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: bp.isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 8 } },
       // Profit target
       /*#__PURE__*/React.createElement(Card, null,
         /*#__PURE__*/React.createElement("span", { className: "lbl" }, "Profit Target"),
@@ -4158,7 +4160,7 @@ function PropFirmTracker(_ref_pft) {
       )
     ),
     // C3. New stats row — Consistency · Profit Factor · Best/Worst Day · Equity Sparkline
-    activeAcct && metrics && metrics.tradingDays > 1 && /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 } },
+    activeAcct && metrics && metrics.tradingDays > 1 && /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: bp.isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 8 } },
       // Consistency
       /*#__PURE__*/React.createElement(Card, null,
         /*#__PURE__*/React.createElement("span", { className: "lbl" }, "Consistency"),
@@ -4319,7 +4321,7 @@ function PropFirmTracker(_ref_pft) {
         }, "+ Add")
       ),
       addPnlMode && /*#__PURE__*/React.createElement("div", { style: { background: isDark ? "#0a0a0a" : "#f5f5f5", borderRadius: 8, padding: 12, marginBottom: 12 } },
-        /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 } },
+        /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: bp.isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 } },
           /*#__PURE__*/React.createElement("div", null,
             /*#__PURE__*/React.createElement("div", { className: "lbl" }, "Date"),
             /*#__PURE__*/React.createElement("input", { type: "date", value: pnlDate, onChange: function(e) { setPnlDate(e.target.value); }, style: inp })
@@ -4940,6 +4942,16 @@ function EmptyState(props) {
     props.hint && React.createElement("div", { style: { fontSize: 11, opacity: 0.5, color: C.textDim } }, props.hint)
   );
 }
+function useBreakpoint() {
+  var _s = React.useState(typeof window !== 'undefined' ? window.innerWidth : 1280);
+  var w = _s[0], setW = _s[1];
+  React.useEffect(function() {
+    function h() { setW(window.innerWidth); }
+    window.addEventListener('resize', h, { passive: true });
+    return function() { window.removeEventListener('resize', h); };
+  }, []);
+  return { isMobile: w < 640, isTablet: w < 900, w: w };
+}
 function NVJournal() {
   var _TZ_MAP$tz;
   var _useState_unlock = useState(function() {
@@ -4961,6 +4973,7 @@ function NVJournal() {
     dst = _useStorage6[0],
     setDst = _useStorage6[1];
   var _tzMap = dst && TZ_DST_MAP[tz] || TZ_MAP[tz];
+  var bp = useBreakpoint();
   var _useStateToast = useState(null),
     _useStateToast2 = _slicedToArray(_useStateToast, 2),
     toast = _useStateToast2[0],
@@ -5650,7 +5663,7 @@ function NVJournal() {
     });
   }
   var CSS = React.useMemo(function () {
-    return "\n    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}\n    body{background:".concat(C.bg, ";color:").concat(C.text, ";font-family:'Inter',sans-serif;min-height:100vh;overflow-anchor:none;scrollbar-width:thin;}\n    ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:").concat(C.bg, ";}::-webkit-scrollbar-thumb{background:").concat(C.border, ";border-radius:2px;}\n    input,select,textarea{background:").concat(isDark ? "#0d0d0d" : "#fff", ";color:").concat(C.text, ";border:1px solid ").concat(isDark ? "#333" : C.border, ";border-radius:5px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;width:100%;outline:none;transition:border-color .15s;}\n    input:focus,select:focus,textarea:focus{border-color:").concat(C.accentDim, ";box-shadow:0 0 0 2px ").concat(C.accentGlow, ";}\n    select option{background:").concat(isDark ? "#111" : "#fff", ";}\n    textarea{resize:vertical;}button{cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}\n    input[type=checkbox]{width:14px;height:14px;accent-color:").concat(C.accent, ";cursor:pointer;}\n    .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:").concat(C.textDim, ";font-weight:600;display:block;margin-bottom:3px;}\n    .card-hover{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;}.card-hover:hover{transform:translateY(-2px);box-shadow:0 8px 24px ").concat(isDark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.1)", " !important;border-color:").concat(C.accentDim, " !important;}\n    @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}\n    @keyframes tabIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}\n    .fade{animation:fadeUp .18s ease forwards;}\n    .tab-panel{animation:tabIn .18s ease forwards;}\n    .nav-tab:hover:not([data-active='true']){background:rgba(128,128,128,0.12)!important;border-radius:20px}\n    @keyframes shimmer{0%{opacity:.6}50%{opacity:1}100%{opacity:.6}}\n    .skel{animation:shimmer 1.5s infinite}\n    .tab-panel>*{animation:tabIn .3s both}\n    .tab-panel>*:nth-child(1){animation-delay:0ms}.tab-panel>*:nth-child(2){animation-delay:40ms}.tab-panel>*:nth-child(3){animation-delay:80ms}.tab-panel>*:nth-child(4){animation-delay:120ms}.tab-panel>*:nth-child(5){animation-delay:160ms}.tab-panel>*:nth-child(6){animation-delay:200ms}.tab-panel>*:nth-child(7){animation-delay:240ms}.tab-panel>*:nth-child(8){animation-delay:280ms}.tab-panel>*:nth-child(9){animation-delay:320ms}.tab-panel>*:nth-child(10){animation-delay:360ms}\n    .stat-val{transition:transform .2s,color .2s;display:inline-block}\n  ");
+    return "\n    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}\n    body{background:".concat(C.bg, ";color:").concat(C.text, ";font-family:'Inter',sans-serif;min-height:100vh;overflow-anchor:none;scrollbar-width:thin;}\n    ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:").concat(C.bg, ";}::-webkit-scrollbar-thumb{background:").concat(C.border, ";border-radius:2px;}\n    input,select,textarea{background:").concat(isDark ? "#0d0d0d" : "#fff", ";color:").concat(C.text, ";border:1px solid ").concat(isDark ? "#333" : C.border, ";border-radius:5px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;width:100%;outline:none;transition:border-color .15s;}\n    input:focus,select:focus,textarea:focus{border-color:").concat(C.accentDim, ";box-shadow:0 0 0 2px ").concat(C.accentGlow, ";}\n    select option{background:").concat(isDark ? "#111" : "#fff", ";}\n    textarea{resize:vertical;}button{cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}\n    input[type=checkbox]{width:14px;height:14px;accent-color:").concat(C.accent, ";cursor:pointer;}\n    .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:").concat(C.textDim, ";font-weight:600;display:block;margin-bottom:3px;}\n    .card-hover{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;}.card-hover:hover{transform:translateY(-2px);box-shadow:0 8px 24px ").concat(isDark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.1)", " !important;border-color:").concat(C.accentDim, " !important;}\n    @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}\n    @keyframes tabIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}\n    .fade{animation:fadeUp .18s ease forwards;}\n    .tab-panel{animation:tabIn .18s ease forwards;}\n    .nav-tab:hover:not([data-active='true']){background:rgba(128,128,128,0.12)!important;border-radius:20px}\n    @keyframes shimmer{0%{opacity:.6}50%{opacity:1}100%{opacity:.6}}\n    .skel{animation:shimmer 1.5s infinite}\n    .tab-panel>*{animation:tabIn .3s both}\n    .tab-panel>*:nth-child(1){animation-delay:0ms}.tab-panel>*:nth-child(2){animation-delay:40ms}.tab-panel>*:nth-child(3){animation-delay:80ms}.tab-panel>*:nth-child(4){animation-delay:120ms}.tab-panel>*:nth-child(5){animation-delay:160ms}.tab-panel>*:nth-child(6){animation-delay:200ms}.tab-panel>*:nth-child(7){animation-delay:240ms}.tab-panel>*:nth-child(8){animation-delay:280ms}.tab-panel>*:nth-child(9){animation-delay:320ms}.tab-panel>*:nth-child(10){animation-delay:360ms}\n    .stat-val{transition:transform .2s,color .2s;display:inline-block}\n    .tab-nav{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}\n    .tab-nav::-webkit-scrollbar{display:none;}\n    .trades-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}\n    @media(max-width:899px){.hdr-date{display:none!important;}}\n  ");
   }, [isDark]);
 
   // ── Shared UI (stable primitives now via ThemeCtx, defined outside) ──
@@ -8174,9 +8187,12 @@ function NVJournal() {
       letterSpacing: ".18em"
     }
   }, "JOURNAL")), /*#__PURE__*/React.createElement("nav", {
+    className: "tab-nav",
     style: {
       display: "flex",
-      gap: 2
+      gap: 2,
+      flexShrink: 1,
+      minWidth: 0
     }
   }, TABS.map(function (t) {
     return /*#__PURE__*/React.createElement("button", {
@@ -8189,17 +8205,19 @@ function NVJournal() {
       },
       style: {
         position: "relative",
-        padding: "6px 16px",
+        padding: bp.isTablet ? "6px 9px" : "6px 16px",
         border: "none",
         borderRadius: 20,
-        fontSize: 11,
+        fontSize: bp.isTablet ? 10 : 11,
         letterSpacing: ".06em",
         fontWeight: tab === t ? 600 : 500,
         background: tab === t ? C.tabActiveBg : "transparent",
         color: tab === t ? C.tabActiveCol : C.textMid,
         boxShadow: "none",
         transition: "all 0.15s ease",
-        cursor: "pointer"
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+        flexShrink: 0
       }
     }, t);
   })), /*#__PURE__*/React.createElement("div", {
@@ -8209,6 +8227,7 @@ function NVJournal() {
       gap: 8
     }
   }, /*#__PURE__*/React.createElement("span", {
+    className: "hdr-date",
     style: {
       fontSize: 10,
       color: C.tabActiveCol,
@@ -8644,11 +8663,12 @@ function NVJournal() {
           zIndex: 145,
           background: barBg,
           borderBottom: "1px solid " + borderCol,
-          padding: "0 22px",
+          padding: bp.isMobile ? "0 10px" : "0 22px",
           height: 30,
           display: "flex",
           alignItems: "center",
-          gap: 16
+          gap: bp.isMobile ? 8 : 16,
+          overflowX: "hidden"
         }
       }, chunks);
     })()
@@ -8659,10 +8679,11 @@ function NVJournal() {
       zIndex: 140,
       background: C.surface,
       borderBottom: "1px solid ".concat(C.border),
-      padding: "6px 22px",
+      padding: bp.isMobile ? "6px 10px" : "6px 22px",
       display: "flex",
       alignItems: "center",
-      gap: 10,
+      gap: bp.isMobile ? 6 : 10,
+      flexWrap: "wrap",
       boxShadow: C.shadow,
       backdropFilter: "blur(8px)",
       WebkitBackdropFilter: "blur(8px)"
@@ -8704,7 +8725,7 @@ function NVJournal() {
     style: {
       maxWidth: 1200,
       margin: "0 auto",
-      padding: "18px 22px"
+      padding: bp.isMobile ? "12px 12px" : "18px 22px"
     }
   }, tab === "Dashboard" && /*#__PURE__*/React.createElement("div", {
     className: "tab-panel",
@@ -8726,7 +8747,7 @@ function NVJournal() {
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "2fr 1fr 1fr 1fr",
+      gridTemplateColumns: bp.isMobile ? "1fr 1fr" : "2fr 1fr 1fr 1fr",
       gap: 10
     }
   }, /*#__PURE__*/React.createElement(Stat, {
@@ -8755,7 +8776,7 @@ function NVJournal() {
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "repeat(4,1fr)",
+      gridTemplateColumns: bp.isMobile ? "1fr 1fr" : "repeat(4,1fr)",
       gap: 10
     }
   }, /*#__PURE__*/React.createElement(Stat, {
@@ -8793,7 +8814,7 @@ function NVJournal() {
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "1fr 1fr",
+      gridTemplateColumns: bp.isMobile ? "1fr" : "1fr 1fr",
       gap: 10
     }
   }, /*#__PURE__*/React.createElement(BestWorstPanel, {
@@ -8804,7 +8825,7 @@ function NVJournal() {
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "1fr 1fr",
+      gridTemplateColumns: bp.isMobile ? "1fr" : "1fr 1fr",
       gap: 10
     }
   }, /*#__PURE__*/React.createElement(DisciplinePanel, {
@@ -8814,7 +8835,7 @@ function NVJournal() {
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "1fr 1fr",
+      gridTemplateColumns: bp.isMobile ? "1fr" : "1fr 1fr",
       gap: 10
     }
   }, /*#__PURE__*/React.createElement(PairStats, {
@@ -8829,7 +8850,7 @@ function NVJournal() {
   }), /*#__PURE__*/React.createElement(BiasEngine, null), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "1fr 1fr",
+      gridTemplateColumns: bp.isMobile ? "1fr" : "1fr 1fr",
       gap: 10
     }
   }, /*#__PURE__*/React.createElement(ConfluenceStats, {
@@ -8844,7 +8865,7 @@ function NVJournal() {
   }), c5Stats.total > 0 && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement(Sect, null, "C5+ Observations"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "repeat(4,1fr)",
+      gridTemplateColumns: bp.isMobile ? "1fr 1fr" : "repeat(4,1fr)",
       gap: 10,
       marginBottom: 12
     }
@@ -9428,7 +9449,7 @@ function NVJournal() {
         }
       });
     })));
-  }(), /*#__PURE__*/React.createElement("div", {
+  }(), /*#__PURE__*/React.createElement("div", { style: { overflowX: "auto", WebkitOverflowScrolling: "touch" } }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "24px 88px 70px 46px 46px 60px 56px 70px 56px 28px 1fr 26px",
@@ -9458,7 +9479,7 @@ function NVJournal() {
     /*#__PURE__*/React.createElement("line", { x1: 8, y1: 9, x2: 16, y2: 9, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
     /*#__PURE__*/React.createElement("line", { x1: 8, y1: 13, x2: 14, y2: 13, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" }),
     /*#__PURE__*/React.createElement("line", { x1: 8, y1: 17, x2: 11, y2: 17, stroke: C.textDim, strokeWidth: 1.5, strokeLinecap: "round" })
-  ), /*#__PURE__*/React.createElement(EmptyState, { svgKey: "trades", title: "No trades in this period", hint: "Adjust the period filter or log a new setup" }))), tab === "Review" && /*#__PURE__*/React.createElement("div", {
+  ), /*#__PURE__*/React.createElement(EmptyState, { svgKey: "trades", title: "No trades in this period", hint: "Adjust the period filter or log a new setup" })))), tab === "Review" && /*#__PURE__*/React.createElement("div", {
     className: "tab-panel",
     style: {
       display: "flex",
@@ -9531,7 +9552,7 @@ function NVJournal() {
   /*#__PURE__*/React.createElement(Card, null,
     /*#__PURE__*/React.createElement("span", { className:"lbl", style:{ marginBottom:10 } }, "Morning \u2014 Set Bias"),
     /*#__PURE__*/React.createElement("div", {
-      style:{ display:"grid", gridTemplateColumns:"120px 1fr 1fr 140px", gap:10, alignItems:"end" }
+      style:{ display:"grid", gridTemplateColumns: bp.isMobile ? "1fr 1fr" : "120px 1fr 1fr 140px", gap:10, alignItems:"end" }
     },
       /*#__PURE__*/React.createElement("div", null,
         /*#__PURE__*/React.createElement("span", { className:"lbl" }, "Date"),
@@ -9623,7 +9644,7 @@ function NVJournal() {
     className: "tab-panel",
     style: {
       position: "relative",
-      paddingRight: 314
+      paddingRight: bp.isMobile ? 0 : 314
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -9639,7 +9660,7 @@ function NVJournal() {
   }, "Setup Info"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "repeat(4,1fr)",
+      gridTemplateColumns: bp.isMobile ? "1fr 1fr" : "repeat(4,1fr)",
       gap: 10
     }
   }, /*#__PURE__*/React.createElement(Fld, {
@@ -10589,7 +10610,11 @@ function NVJournal() {
       fontSize: 12
     }
   }, "Reset"))), /*#__PURE__*/React.createElement("div", {
-    style: {
+    style: bp.isMobile ? {
+      position: "relative",
+      width: "100%",
+      marginTop: 12
+    } : {
       position: "absolute",
       top: 0,
       right: 0,
@@ -10597,7 +10622,7 @@ function NVJournal() {
       height: "100%"
     }
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
+    style: bp.isMobile ? {} : {
       position: "sticky",
       top: 58
     }
@@ -10716,7 +10741,6 @@ function NVJournal() {
       padding: "14px 22px",
       display: "flex",
       alignItems: "center",
-      justifyContent: "space-between",
       marginTop: 24
     }
   }, /*#__PURE__*/React.createElement("div", {
@@ -10735,22 +10759,7 @@ function NVJournal() {
       fontFamily: F_MONO,
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v67")), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 9,
-      color: C.textDim,
-      fontFamily: F_MONO,
-      letterSpacing: ".08em",
-      opacity: 0.6,
-      marginLeft: 8
-    }
-  }, "GRADE MODEL v1"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 10,
-      color: C.textDim,
-      fontFamily: F_MONO
-    }
-  }, "\xA9 ", new Date().getFullYear(), " Nerijus Velza. All rights reserved."), lightboxImg && /*#__PURE__*/React.createElement("div", {
+  }, "NV JOURNAL - v68")), lightboxImg && /*#__PURE__*/React.createElement("div", {
       onClick: function(){setLightboxImg(null);},
       style:{position:"fixed",inset:0,zIndex:600,background:"rgba(0,0,0,0.94)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out"}
     },
