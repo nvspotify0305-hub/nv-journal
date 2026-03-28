@@ -3841,6 +3841,7 @@ function PropFirmTracker(_ref_pft) {
   var _usO = useState(null), _usO2 = _slicedToArray(_usO, 2), confirmDelAcct = _usO2[0], setConfirmDelAcct = _usO2[1];
   var _usP = useState(""), _usP2 = _slicedToArray(_usP, 2), pnlCount = _usP2[0], setPnlCount = _usP2[1];
   var _usQ = useState(null), _usQ2 = _slicedToArray(_usQ, 2), dragOverId = _usQ2[0], setDragOverId = _usQ2[1];
+  var _usR = useState(null), _usR2 = _slicedToArray(_usR, 2), sparkHover = _usR2[0], setSparkHover = _usR2[1];
   // Derive active account
   var activeAcct = null;
   for (var _ai = 0; _ai < accounts.length; _ai++) { if (accounts[_ai].id === activeId) { activeAcct = accounts[_ai]; break; } }
@@ -3863,7 +3864,12 @@ function PropFirmTracker(_ref_pft) {
       return _regenerator().w(function(_ctx) {
         while (1) switch (_ctx.n) {
           case 0: _ctx.n = 1; return sbLoad("prop_firms");
-          case 1: data = _ctx.v; if (data && data.length > 0) setAccounts(data);
+          case 1: data = _ctx.v; if (data && data.length > 0) setAccounts(function(prev) {
+            var order = prev.map(function(a) { return a.id; });
+            var sorted = order.map(function(id) { return data.find(function(d) { return d.id === id; }); }).filter(Boolean);
+            var newOnes = data.filter(function(d) { return !order.includes(d.id); });
+            return sorted.concat(newOnes);
+          });
           case 2: return _ctx.a(2);
         }
       }, _callee_pft);
@@ -4227,7 +4233,13 @@ function PropFirmTracker(_ref_pft) {
           );
           var initial = activeAcct.initial_balance || 50000;
           var balances = [initial];
-          hist.forEach(function(e) { balances.push(balances[balances.length - 1] + (e.pnl || 0)); });
+          var spDates = [null];
+          var spPnls = [0];
+          hist.forEach(function(e) {
+            balances.push(balances[balances.length - 1] + (e.pnl || 0));
+            spDates.push(e.date);
+            spPnls.push(e.pnl || 0);
+          });
           var minB = Math.min.apply(null, balances), maxB = Math.max.apply(null, balances);
           var range = maxB - minB || 1;
           var W = 200, H = 44;
@@ -4239,16 +4251,53 @@ function PropFirmTracker(_ref_pft) {
           var d = pts.map(function(p, i) { return (i === 0 ? "M" : "L") + p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
           var fill = d + " L" + W + "," + H + " L0," + H + " Z";
           var lastY = pts[pts.length - 1][1];
-          return /*#__PURE__*/React.createElement("svg", { width: "100%", height: H, viewBox: "0 0 " + W + " " + H, preserveAspectRatio: "none" },
-            /*#__PURE__*/React.createElement("defs", null,
-              /*#__PURE__*/React.createElement("linearGradient", { id: "eq-grad", x1: "0", y1: "0", x2: "0", y2: "1" },
-                /*#__PURE__*/React.createElement("stop", { offset: "0%", stopColor: firmCol, stopOpacity: isDark ? "0.2" : "0.12" }),
-                /*#__PURE__*/React.createElement("stop", { offset: "100%", stopColor: firmCol, stopOpacity: "0" })
+          var hIdx = (sparkHover !== null) ? sparkHover : -1;
+          return /*#__PURE__*/React.createElement("div", { style: { position: "relative" } },
+            hIdx >= 0 && /*#__PURE__*/React.createElement("div", {
+              style: {
+                position: "absolute", bottom: "calc(100% + 4px)",
+                left: (pts[hIdx][0] / W * 100) + "%",
+                transform: "translateX(-50%)",
+                background: C.surface, border: "1px solid " + C.border,
+                borderRadius: 5, padding: "4px 8px",
+                fontSize: 9, fontFamily: F_MONO, color: C.text,
+                whiteSpace: "nowrap", pointerEvents: "none", zIndex: 10,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.25)"
+              }
+            },
+              /*#__PURE__*/React.createElement("div", { style: { color: C.textMid, marginBottom: 2 } }, hIdx === 0 ? "Start" : spDates[hIdx]),
+              /*#__PURE__*/React.createElement("div", { style: { color: firmCol, fontWeight: 700 } },
+                "$" + balances[hIdx].toLocaleString("en-US", { maximumFractionDigits: 0 })
+              ),
+              hIdx > 0 && /*#__PURE__*/React.createElement("div", { style: { color: spPnls[hIdx] >= 0 ? C.green : C.red } },
+                (spPnls[hIdx] >= 0 ? "+" : "") + "$" + Math.abs(spPnls[hIdx]).toLocaleString("en-US", { maximumFractionDigits: 0 })
               )
             ),
-            /*#__PURE__*/React.createElement("path", { d: fill, fill: "url(#eq-grad)" }),
-            /*#__PURE__*/React.createElement("path", { d: d, fill: "none", stroke: firmCol, strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" }),
-            /*#__PURE__*/React.createElement("circle", { cx: pts[pts.length - 1][0].toFixed(1), cy: lastY.toFixed(1), r: "3", fill: firmCol })
+            /*#__PURE__*/React.createElement("svg", {
+              width: "100%", height: H, viewBox: "0 0 " + W + " " + H, preserveAspectRatio: "none",
+              style: { display: "block", cursor: "crosshair" },
+              onMouseMove: function(e) {
+                var rect = e.currentTarget.getBoundingClientRect();
+                var idx = Math.round(((e.clientX - rect.left) / rect.width) * (balances.length - 1));
+                setSparkHover(Math.max(0, Math.min(balances.length - 1, idx)));
+              },
+              onMouseLeave: function() { setSparkHover(null); }
+            },
+              /*#__PURE__*/React.createElement("defs", null,
+                /*#__PURE__*/React.createElement("linearGradient", { id: "eq-grad", x1: "0", y1: "0", x2: "0", y2: "1" },
+                  /*#__PURE__*/React.createElement("stop", { offset: "0%", stopColor: firmCol, stopOpacity: isDark ? "0.2" : "0.12" }),
+                  /*#__PURE__*/React.createElement("stop", { offset: "100%", stopColor: firmCol, stopOpacity: "0" })
+                )
+              ),
+              /*#__PURE__*/React.createElement("path", { d: fill, fill: "url(#eq-grad)" }),
+              /*#__PURE__*/React.createElement("path", { d: d, fill: "none", stroke: firmCol, strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" }),
+              hIdx >= 0
+                ? /*#__PURE__*/React.createElement("g", null,
+                    /*#__PURE__*/React.createElement("line", { x1: pts[hIdx][0].toFixed(1), y1: "0", x2: pts[hIdx][0].toFixed(1), y2: H, stroke: firmCol, strokeWidth: "0.6", strokeDasharray: "2,2", opacity: "0.6" }),
+                    /*#__PURE__*/React.createElement("circle", { cx: pts[hIdx][0].toFixed(1), cy: pts[hIdx][1].toFixed(1), r: "3.5", fill: firmCol, stroke: C.surface, strokeWidth: "1.5" })
+                  )
+                : /*#__PURE__*/React.createElement("circle", { cx: pts[pts.length - 1][0].toFixed(1), cy: lastY.toFixed(1), r: "3", fill: firmCol })
+            )
           );
         })(),
         /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, fontFamily: F_MONO, color: C.textDim, marginTop: 4 } },
@@ -5743,6 +5792,7 @@ function NVJournal() {
   // ── Dashboard panels ──
   var EquityCurve = function EquityCurve(_ref39) {
     var _sorted$, _sorted;
+    var _useEqH = useState(null), _useEqH2 = _slicedToArray(_useEqH, 2), eqHover = _useEqH2[0], setEqHover = _useEqH2[1];
     var data = _ref39.data;
     var sorted = _toConsumableArray(data).filter(function (t) {
       return t.trade_taken;
@@ -5814,8 +5864,16 @@ function NVJournal() {
       style: {
         width: "100%",
         height: 160,
-        marginTop: 4
-      }
+        marginTop: 4,
+        cursor: "crosshair"
+      },
+      onMouseMove: function(e) {
+        var rect = e.currentTarget.getBoundingClientRect();
+        var vbX = ((e.clientX - rect.left) / rect.width) * W;
+        var idx = Math.round((vbX - p) / (W - p * 2) * (pts.length - 1));
+        setEqHover(Math.max(0, Math.min(pts.length - 1, idx)));
+      },
+      onMouseLeave: function() { setEqHover(null); }
     }, /*#__PURE__*/React.createElement("line", {
       x1: p,
       y1: zy,
@@ -5840,12 +5898,22 @@ function NVJournal() {
       strokeWidth: 1.8,
       strokeLinecap: "round",
       strokeLinejoin: "round"
-    }), /*#__PURE__*/React.createElement("circle", {
+    }), eqHover === null && /*#__PURE__*/React.createElement("circle", {
       cx: x(pts.length - 1),
       cy: y(last),
       r: 3.5,
       fill: lc
-    }, /*#__PURE__*/React.createElement("title", null, (sorted[sorted.length - 1] ? sorted[sorted.length - 1].date : "") + " | " + (last >= 0 ? "+" : "") + last.toFixed(2) + "R")), uniqueMarkers.map(function (i) {
+    }),
+    eqHover !== null && /*#__PURE__*/React.createElement("g", null,
+      /*#__PURE__*/React.createElement("line", { x1: x(eqHover).toFixed(1), y1: p, x2: x(eqHover).toFixed(1), y2: H - p, stroke: lc, strokeWidth: "0.8", strokeDasharray: "3,3", opacity: "0.7" }),
+      /*#__PURE__*/React.createElement("circle", { cx: x(eqHover).toFixed(1), cy: y(pts[eqHover]).toFixed(1), r: "4", fill: lc, stroke: C.surface, strokeWidth: "1.5" }),
+      /*#__PURE__*/React.createElement("g", { transform: "translate(" + (x(eqHover) < W / 2 ? x(eqHover) + 10 : x(eqHover) - 102) + "," + (p + 2) + ")" },
+        /*#__PURE__*/React.createElement("rect", { width: "96", height: "44", rx: "3", fill: C.surface, stroke: C.border, strokeWidth: "0.8" }),
+        /*#__PURE__*/React.createElement("text", { x: "7", y: "14", fontSize: "8", fill: C.textMid, fontFamily: "JetBrains Mono,monospace" }, sorted[eqHover] ? sorted[eqHover].date : ""),
+        /*#__PURE__*/React.createElement("text", { x: "7", y: "27", fontSize: "10", fill: lc, fontFamily: "JetBrains Mono,monospace", fontWeight: "700" }, (pts[eqHover] >= 0 ? "+" : "") + pts[eqHover].toFixed(2) + "R"),
+        /*#__PURE__*/React.createElement("text", { x: "7", y: "39", fontSize: "8", fill: C.textMid, fontFamily: "JetBrains Mono,monospace" }, sorted[eqHover] ? ((sorted[eqHover].pair || "") + " \xB7 " + (sorted[eqHover].direction || "")) : "")
+      )
+    ), uniqueMarkers.map(function (i) {
       return /*#__PURE__*/React.createElement("g", {
         key: i
       }, /*#__PURE__*/React.createElement("line", {
