@@ -994,7 +994,6 @@ function LockScreen(_ref_lock) {
   var inputRef = React.useRef(null);
   var C = isDark ? DARK : LIGHT;
   var ink = isDark ? "#e0e0e0" : "#1a1a1a";
-  var gridColor = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)";
   var vignetteColor = isDark ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.06)";
   var lockBg = isDark ? "#05070A" : "#fafafa";
   React.useEffect(function() { if (inputRef.current) inputRef.current.focus(); }, []);
@@ -1009,7 +1008,6 @@ function LockScreen(_ref_lock) {
       setTimeout(function() { setError(false); }, 2000);
     }
   }
-  var gridCSS = "linear-gradient(" + gridColor + " 1px, transparent 1px), linear-gradient(90deg, " + gridColor + " 1px, transparent 1px)";
   return React.createElement("div", {
     style: {
       position: "fixed", inset: 0, zIndex: 9999,
@@ -1018,14 +1016,10 @@ function LockScreen(_ref_lock) {
       fontFamily: "'Inter', sans-serif"
     }
   },
-    // Grid background
-    React.createElement("div", {
-      style: {
-        position: "absolute", inset: 0,
-        backgroundImage: gridCSS,
-        backgroundSize: "40px 40px",
-        pointerEvents: "none"
-      }
+    // Dot grid background
+    React.createElement(DotGrid, {
+      isDark: isDark,
+      canvasStyle: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }
     }),
     // Vignette
     React.createElement("div", {
@@ -4942,6 +4936,76 @@ function EmptyState(props) {
     props.hint && React.createElement("div", { style: { fontSize: 11, opacity: 0.5, color: C.textDim } }, props.hint)
   );
 }
+function DotGrid(_ref_dg) {
+  var _tctx = React.useContext(ThemeCtx);
+  var isDark = (_ref_dg && _ref_dg.isDark !== undefined) ? _ref_dg.isDark : _tctx.isDark;
+  var canvasRef = React.useRef(null);
+  var mouseRef = React.useRef({ x: -9999, y: -9999 });
+  var lerpRef = React.useRef({ x: -9999, y: -9999 });
+  var rafRef = React.useRef(null);
+  React.useEffect(function() {
+    var canvas = canvasRef.current;
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var W = 0, H = 0, cols = 0, rows = 0;
+    var SPACING = 24, RADIUS = 1.5, INFLUENCE = 130;
+    var baseColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)';
+    function resize() {
+      W = canvas.width = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+      cols = Math.ceil(W / SPACING) + 1;
+      rows = Math.ceil(H / SPACING) + 1;
+    }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      lerpRef.current.x = lerp(lerpRef.current.x, mouseRef.current.x, 0.07);
+      lerpRef.current.y = lerp(lerpRef.current.y, mouseRef.current.y, 0.07);
+      var mx = lerpRef.current.x, my = lerpRef.current.y;
+      var litDots = [];
+      ctx.fillStyle = baseColor;
+      ctx.beginPath();
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < cols; c++) {
+          var bx = c * SPACING, by = r * SPACING;
+          var dx = bx - mx, dy = by - my;
+          var pull = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / INFLUENCE);
+          if (pull > 0) {
+            litDots.push([bx - dx * pull * 0.14, by - dy * pull * 0.14, pull]);
+          } else {
+            ctx.moveTo(bx + RADIUS, by);
+            ctx.arc(bx, by, RADIUS, 0, Math.PI * 2);
+          }
+        }
+      }
+      ctx.fill();
+      for (var i = 0; i < litDots.length; i++) {
+        var dot = litDots[i];
+        ctx.fillStyle = isDark
+          ? 'rgba(255,255,255,' + (0.05 + dot[2] * 0.15) + ')'
+          : 'rgba(0,0,0,' + (0.04 + dot[2] * 0.1) + ')';
+        ctx.beginPath();
+        ctx.arc(dot[0], dot[1], RADIUS, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      rafRef.current = requestAnimationFrame(draw);
+    }
+    function onMove(e) { mouseRef.current.x = e.clientX; mouseRef.current.y = e.clientY; }
+    resize();
+    window.addEventListener('resize', resize, { passive: true });
+    window.addEventListener('mousemove', onMove, { passive: true });
+    draw();
+    return function() {
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('mousemove', onMove);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [isDark]);
+  return React.createElement('canvas', {
+    ref: canvasRef,
+    style: Object.assign({ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }, (_ref_dg && _ref_dg.canvasStyle) || {})
+  });
+}
 function useBreakpoint() {
   var _s = React.useState(typeof window !== 'undefined' ? window.innerWidth : 1280);
   var w = _s[0], setW = _s[1];
@@ -5663,7 +5727,7 @@ function NVJournal() {
     });
   }
   var CSS = React.useMemo(function () {
-    return "\n    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}\n    body{background:".concat(C.bg, ";color:").concat(C.text, ";font-family:'Inter',sans-serif;min-height:100vh;overflow-anchor:none;scrollbar-width:thin;}\n    ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:").concat(C.bg, ";}::-webkit-scrollbar-thumb{background:").concat(C.border, ";border-radius:2px;}\n    input,select,textarea{background:").concat(isDark ? "#0d0d0d" : "#fff", ";color:").concat(C.text, ";border:1px solid ").concat(isDark ? "#333" : C.border, ";border-radius:5px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;width:100%;outline:none;transition:border-color .15s;}\n    input:focus,select:focus,textarea:focus{border-color:").concat(C.accentDim, ";box-shadow:0 0 0 2px ").concat(C.accentGlow, ";}\n    select option{background:").concat(isDark ? "#111" : "#fff", ";}\n    textarea{resize:vertical;}button{cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}\n    input[type=checkbox]{width:14px;height:14px;accent-color:").concat(C.accent, ";cursor:pointer;}\n    .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:").concat(C.textDim, ";font-weight:600;display:block;margin-bottom:3px;}\n    .card-hover{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;}.card-hover:hover{transform:translateY(-2px);box-shadow:0 8px 24px ").concat(isDark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.1)", " !important;border-color:").concat(C.accentDim, " !important;}\n    @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}\n    @keyframes tabIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}\n    .fade{animation:fadeUp .18s ease forwards;}\n    .tab-panel{animation:tabIn .18s ease forwards;}\n    .nav-tab:hover:not([data-active='true']){background:rgba(128,128,128,0.12)!important;border-radius:20px}\n    @keyframes shimmer{0%{opacity:.6}50%{opacity:1}100%{opacity:.6}}\n    .skel{animation:shimmer 1.5s infinite}\n    .tab-panel>*{animation:tabIn .3s both}\n    .tab-panel>*:nth-child(1){animation-delay:0ms}.tab-panel>*:nth-child(2){animation-delay:40ms}.tab-panel>*:nth-child(3){animation-delay:80ms}.tab-panel>*:nth-child(4){animation-delay:120ms}.tab-panel>*:nth-child(5){animation-delay:160ms}.tab-panel>*:nth-child(6){animation-delay:200ms}.tab-panel>*:nth-child(7){animation-delay:240ms}.tab-panel>*:nth-child(8){animation-delay:280ms}.tab-panel>*:nth-child(9){animation-delay:320ms}.tab-panel>*:nth-child(10){animation-delay:360ms}\n    .stat-val{transition:transform .2s,color .2s;display:inline-block}\n    .tab-nav{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}\n    .tab-nav::-webkit-scrollbar{display:none;}\n    .trades-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}\n    @media(max-width:899px){.hdr-date{display:none!important;}}\n  ");
+    return "\n    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}\n    body{background:".concat(C.bg, ";color:").concat(C.text, ";font-family:'Inter',sans-serif;min-height:100vh;overflow-anchor:none;scrollbar-width:thin;}\n    ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:").concat(C.bg, ";}::-webkit-scrollbar-thumb{background:").concat(C.border, ";border-radius:2px;}\n    input,select,textarea{background:").concat(isDark ? "#0d0d0d" : "#fff", ";color:").concat(C.text, ";border:1px solid ").concat(isDark ? "#333" : C.border, ";border-radius:5px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;width:100%;outline:none;transition:border-color .15s;color-scheme:").concat(isDark ? "dark" : "light", ";}\n    input:focus,select:focus,textarea:focus{border-color:").concat(C.accentDim, ";box-shadow:0 0 0 2px ").concat(C.accentGlow, ";}\n    select option{background:").concat(isDark ? "#111" : "#fff", ";}\n    textarea{resize:vertical;}button{cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;}\n    input[type=checkbox]{width:14px;height:14px;accent-color:").concat(C.accent, ";cursor:pointer;}\n    .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:").concat(C.textDim, ";font-weight:600;display:block;margin-bottom:3px;}\n    .card-hover{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;}.card-hover:hover{transform:translateY(-2px);box-shadow:0 8px 24px ").concat(isDark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.1)", " !important;border-color:").concat(C.accentDim, " !important;}\n    @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}\n    @keyframes tabIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}\n    .fade{animation:fadeUp .18s ease forwards;}\n    .tab-panel{animation:tabIn .18s ease forwards;}\n    .nav-tab:hover:not([data-active='true']){background:rgba(128,128,128,0.12)!important;border-radius:20px}\n    @keyframes shimmer{0%{opacity:.6}50%{opacity:1}100%{opacity:.6}}\n    .skel{animation:shimmer 1.5s infinite}\n    .tab-panel>*{animation:tabIn .3s both}\n    .tab-panel>*:nth-child(1){animation-delay:0ms}.tab-panel>*:nth-child(2){animation-delay:40ms}.tab-panel>*:nth-child(3){animation-delay:80ms}.tab-panel>*:nth-child(4){animation-delay:120ms}.tab-panel>*:nth-child(5){animation-delay:160ms}.tab-panel>*:nth-child(6){animation-delay:200ms}.tab-panel>*:nth-child(7){animation-delay:240ms}.tab-panel>*:nth-child(8){animation-delay:280ms}.tab-panel>*:nth-child(9){animation-delay:320ms}.tab-panel>*:nth-child(10){animation-delay:360ms}\n    .stat-val{transition:transform .2s,color .2s;display:inline-block}\n    .tab-nav{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}\n    .tab-nav::-webkit-scrollbar{display:none;}\n    .trades-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}\n    @media(max-width:899px){.hdr-date{display:none!important;}}\n  ");
   }, [isDark]);
 
   // ── Shared UI (stable primitives now via ThemeCtx, defined outside) ──
@@ -5691,7 +5755,7 @@ function NVJournal() {
         acc: acc
       };
     });
-    return /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("span", {
+    return /*#__PURE__*/React.createElement(Card, { style: { height: "100%", boxSizing: "border-box" } }, /*#__PURE__*/React.createElement("span", {
       className: "lbl",
       style: {
         marginBottom: 12
@@ -6428,7 +6492,7 @@ function NVJournal() {
     var r = 30,
       circ = 2 * Math.PI * r;
     var arcC = acc >= 60 ? C.green : acc >= 40 ? C.yellow : C.red;
-    return /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("span", {
+    return /*#__PURE__*/React.createElement(Card, { style: { height: "100%", boxSizing: "border-box" } }, /*#__PURE__*/React.createElement("span", {
       className: "lbl"
     }, "Bias Accuracy"), /*#__PURE__*/React.createElement("div", {
       style: {
@@ -6510,6 +6574,48 @@ function NVJournal() {
         }
       }, v));
     }))));
+  };
+  var WeeklyTrend = function WeeklyTrend() {
+    var allWeeks = _toConsumableArray(new Set(days.map(function(d) { return getWeekKey(d.date); }))).sort();
+    var weekData = allWeeks.map(function(wk) {
+      var wd = days.filter(function(d) { return getWeekKey(d.date) === wk && d.outcome && d.outcome !== "Trash Day"; });
+      var correct = wd.filter(function(d) { return d.outcome === "Correct"; }).length;
+      var acc = wd.length ? Math.round(correct / wd.length * 100) : null;
+      return { wk: wk, acc: acc, label: wk.replace(/^\d{4}-/, "") };
+    }).filter(function(w) { return w.acc !== null; }).slice(-8);
+    var lastAcc = weekData.length ? weekData[weekData.length - 1].acc : null;
+    var trend = weekData.length >= 2 ? weekData[weekData.length - 1].acc - weekData[weekData.length - 2].acc : 0;
+    var trendCol = lastAcc === null ? C.textDim : lastAcc >= 60 ? C.green : lastAcc >= 40 ? C.yellow : C.red;
+    var W = 220, H = 60;
+    var pts = weekData.map(function(d, i) {
+      var x = weekData.length < 2 ? W / 2 : i / (weekData.length - 1) * W;
+      var y = H - (d.acc / 100 * H * 0.85) - 4;
+      return [x, y];
+    });
+    var linePath = pts.map(function(p, i) { return (i === 0 ? "M" : "L") + p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
+    var areaPath = pts.length > 0 ? linePath + " L" + pts[pts.length-1][0].toFixed(1) + "," + H + " L" + pts[0][0].toFixed(1) + "," + H + " Z" : "";
+    return /*#__PURE__*/React.createElement(Card, { style: { height: "100%", boxSizing: "border-box" } },
+      /*#__PURE__*/React.createElement("span", { className: "lbl", style: { marginBottom: 8 } }, "Weekly Trend"),
+      weekData.length < 2
+        ? /*#__PURE__*/React.createElement("div", { style: { color: C.textDim, fontSize: 11, marginTop: 20, textAlign: "center" } }, "Need 2+ weeks of data")
+        : /*#__PURE__*/React.createElement(React.Fragment, null,
+            /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 6, marginBottom: 10 } },
+              /*#__PURE__*/React.createElement("span", { style: { fontFamily: F_DISPLAY, fontSize: 26, color: trendCol, lineHeight: 1 } }, lastAcc + "%"),
+              /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, color: trend >= 0 ? C.green : C.red } },
+                (trend >= 0 ? "+" : "") + trend + " vs prev wk"
+              )
+            ),
+            /*#__PURE__*/React.createElement("svg", { viewBox: "0 0 " + W + " " + H, style: { width: "100%", height: H, display: "block", overflow: "visible" } },
+              /*#__PURE__*/React.createElement("line", { x1: 0, y1: H * 0.5, x2: W, y2: H * 0.5, stroke: C.border, strokeWidth: 1, strokeDasharray: "3 3" }),
+              /*#__PURE__*/React.createElement("path", { d: areaPath, fill: trendCol, opacity: 0.08 }),
+              /*#__PURE__*/React.createElement("path", { d: linePath, fill: "none", stroke: trendCol, strokeWidth: 2, strokeLinejoin: "round", strokeLinecap: "round" }),
+              pts.map(function(p, i) { return /*#__PURE__*/React.createElement("circle", { key: i, cx: p[0], cy: p[1], r: 3, fill: trendCol }); })
+            ),
+            /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 4 } },
+              weekData.map(function(d, i) { return /*#__PURE__*/React.createElement("span", { key: i, style: { fontSize: 8, color: C.textDim } }, d.label); })
+            )
+          )
+    );
   };
   var ConfluenceStats = function ConfluenceStats(_ref51) {
     var data = _ref51.data,
@@ -7249,11 +7355,12 @@ function NVJournal() {
       _useState90 = _slicedToArray(_useState89, 2),
       wMood = _useState90[0],
       setWMood = _useState90[1];
+    var _wNotesExt = (weeklyData[reviewWeek] || {}).notes || "";
+    var _wMoodExt = (weeklyData[reviewWeek] || {}).mood || 0;
     useEffect(function () {
-      var d = weeklyData[reviewWeek] || {};
-      setWNotes(d.notes || "");
-      setWMood(d.mood || 0);
-    }, [reviewWeek, weeklyData]);
+      setWNotes(_wNotesExt);
+      setWMood(_wMoodExt);
+    }, [reviewWeek, _wNotesExt, _wMoodExt]);
     var saveMood = function saveMood(m) {
       setWMood(m);
       saveWeeklyField(reviewWeek, "mood", m);
@@ -8117,7 +8224,7 @@ function NVJournal() {
       minHeight: "100vh",
       background: C.bg
     }
-  }, /*#__PURE__*/React.createElement("svg", {
+  }, /*#__PURE__*/React.createElement(DotGrid, null), /*#__PURE__*/React.createElement("svg", {
     viewBox: "0 0 200 200",
     style: {
       position: "fixed", right: 10, bottom: 10,
@@ -9550,7 +9657,7 @@ function NVJournal() {
     }
   }, /*#__PURE__*/React.createElement(Sect, null, "Daily Bias Engine"),
   /*#__PURE__*/React.createElement(Card, null,
-    /*#__PURE__*/React.createElement("span", { className:"lbl", style:{ marginBottom:10 } }, "Morning \u2014 Set Bias"),
+    /*#__PURE__*/React.createElement("span", { className:"lbl", style:{ marginBottom:10, borderLeft: "2px solid " + C.accent, paddingLeft: 8 } }, "Morning \u2014 Set Bias"),
     /*#__PURE__*/React.createElement("div", {
       style:{ display:"grid", gridTemplateColumns: bp.isMobile ? "1fr 1fr" : "120px 1fr 1fr 140px", gap:10, alignItems:"end" }
     },
@@ -9584,11 +9691,11 @@ function NVJournal() {
       }, "SET BIAS")
     )
   ),
-  /*#__PURE__*/React.createElement(BiasEngine, null),
-  /*#__PURE__*/React.createElement(DowChart, {
-    days: days,
-    C: C
-  }), /*#__PURE__*/React.createElement("div", {
+  /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: bp.isMobile ? "1fr" : "200px 1fr 1fr", gap: 12, alignItems: "stretch" } },
+    /*#__PURE__*/React.createElement(BiasEngine, null),
+    /*#__PURE__*/React.createElement(DowChart, { days: days, C: C }),
+    /*#__PURE__*/React.createElement(WeeklyTrend, null)
+  ), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
@@ -10759,7 +10866,7 @@ function NVJournal() {
       fontFamily: F_MONO,
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v68")), lightboxImg && /*#__PURE__*/React.createElement("div", {
+  }, "NV JOURNAL - v69")), lightboxImg && /*#__PURE__*/React.createElement("div", {
       onClick: function(){setLightboxImg(null);},
       style:{position:"fixed",inset:0,zIndex:600,background:"rgba(0,0,0,0.94)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out"}
     },

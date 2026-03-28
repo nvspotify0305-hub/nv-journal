@@ -327,14 +327,19 @@ Open `http://localhost:8080` — the app is fully self-contained, no API calls b
 ### Dark Mode
 | Token | Value |
 |---|---|
-| `bg` | `#141414` |
-| `surface` | `#1c1c1c` |
-| `surfaceHigh` | `#242424` |
-| `border` | `#333` |
+| `bg` | `#1c1c1c` |
+| `surface` | `#252525` |
+| `surfaceHigh` | `#2e2e2e` |
+| `border` | `#3d3d3d` |
 | `text` | `#f0f0f0` |
-| `textMid` | `#888` |
-| `textDim` | `#555` |
+| `textMid` | `#aaa` |
+| `textDim` | `#777` |
 | `accent` | `#fff` |
+| `inputBg` | `#1e1e1e` |
+| `headerBg` | `#202020` |
+| `headerBorder` | `rgba(255,255,255,0.07)` |
+| `tabActiveBg` | `rgba(255,255,255,0.08)` |
+| `tabActiveCol` | `#ffffff` |
 | `green` | `#3dd68c` |
 | `red` | `#f06464` |
 | `blue` | `#60a5fa` |
@@ -374,12 +379,15 @@ SVG `viewBox="0 0 200 200"`:
 | Phase | Status | Description |
 |---|---|---|
 | Phase 1 | ✅ Done | Cloudflare Worker + KV cache + cron trigger |
-| **Phase 2** | 🔜 **Next** | Grade Model v2 (score 0–20, new fields, H1 Phase selector) |
+| Phase 2 | ⏸ Parked | Grade Model v2 — do not build without explicit instruction |
 | Phase 3 | Pending | Persistent status bar |
 | Phase 4 | Pending | Pre-session morning brief |
-| Phase 5 | Pending | Funded account tracker (Topstep / FundedNext) |
-| Phase 6 | Pending | UI polish pass |
-| Phase 7 | Pending | Gallery + trade image viewer |
+| Phase 5 | ✅ Done | Funded account tracker — live since v64, enhanced v65/v66 |
+| Phase 6 | ✅ Done | UI polish pass — dark mode Windows-style, neutral header, watermarks, equity curve, maxWidth |
+| Phase 7 | ✅ Done | Gallery + trade image viewer — live in Trades tab |
+| Phase 8 | Pending | Tablet/mobile responsive layout |
+| Phase 9 | Pending | Market Context panel (DXY + economic calendar, no paid API) |
+| Phase 10 | Pending | Sales version — separate repo, strip personal data, light obfuscation, bundle NVTemplate, Gumroad £49 |
 
 ### Phase 2 — Grade Model v2 Scope (detailed)
 
@@ -411,15 +419,9 @@ SVG `viewBox="0 0 200 200"`:
 
 ---
 
-## 11. Pending — Macro Tab Features
+## 11. ~~Macro Tab~~ — Removed
 
-Priority order:
-
-1. **Interest rate panel** — Fed/ECB/BoE rates, differential, next meeting date. Use FRED API (free, no key required for public series).
-2. **COT positioning** — CFTC CSV data via Worker. EUR and GBP net non-commercial positions.
-3. **Live commodities/indices** — Oil, DXY, S&P 500, VIX via Yahoo Finance proxied through Worker.
-4. **Pair bias conflict flag** — cross-reference macro bias vs logged daily bias from `days` table.
-5. **News danger zone** — surface high-impact news events on the Log Trade form.
+The Macro tab has been **permanently removed** (since v65). The free-tier stack (Alpha Vantage + Cloudflare Worker KV) was unreliable. Do not re-add or reference these features.
 
 ---
 
