@@ -5867,6 +5867,7 @@ function NVJournal() {
         marginTop: 4,
         cursor: "crosshair"
       },
+      preserveAspectRatio: "none",
       onMouseMove: function(e) {
         var rect = e.currentTarget.getBoundingClientRect();
         var vbX = ((e.clientX - rect.left) / rect.width) * W;
