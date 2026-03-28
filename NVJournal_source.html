@@ -594,31 +594,31 @@ function calcGrade(s) {
 
 // ─── THEMES ───────────────────────────────────────────────────────────────────
 var DARK = {
-  bg: "#0a0a0a",
-  surface: "#161616",
-  surfaceHigh: "#1e1e1e",
-  border: "#2d2d2d",
+  bg: "#1c1c1c",
+  surface: "#252525",
+  surfaceHigh: "#2e2e2e",
+  border: "#3d3d3d",
   accent: "#fff",
-  accentDim: "#666",
-  accentGlow: "rgba(255,255,255,0.08)",
+  accentDim: "#777",
+  accentGlow: "rgba(255,255,255,0.06)",
   green: "#3dd68c",
   red: "#f06464",
   blue: "#60a5fa",
   yellow: "#fbbf24",
   text: "#f0f0f0",
-  textMid: "#999",
+  textMid: "#aaa",
   textDim: "#777",
-  inputBg: "#111111",
+  inputBg: "#1e1e1e",
   shadow: "none",
-  shadowElevated: "0 0 0 1px #2d2d2d, 0 8px 20px rgba(0,0,0,0.5)",
+  shadowElevated: "0 0 0 1px #3d3d3d, 0 6px 16px rgba(0,0,0,0.3)",
   gradeAp: "#fff",
   gradeA: "#60a5fa",
   gradeB: "#f06464",
-  headerBg: "#0c0c0f",
-  headerBorder: "rgba(96,165,250,0.18)",
-  headerShadow: "0 1px 0 rgba(96,165,250,0.08), 0 4px 24px rgba(0,0,0,0.5)",
-  tabActiveBg: "rgba(96,165,250,0.1)",
-  tabActiveCol: "#60a5fa"
+  headerBg: "#202020",
+  headerBorder: "rgba(255,255,255,0.07)",
+  headerShadow: "0 1px 0 rgba(255,255,255,0.04), 0 4px 16px rgba(0,0,0,0.3)",
+  tabActiveBg: "rgba(255,255,255,0.08)",
+  tabActiveCol: "#ffffff"
 };
 var LIGHT = {
   bg: "#f0f0f0",
@@ -642,10 +642,10 @@ var LIGHT = {
   gradeA: "#1a4fa0",
   gradeB: "#c0392b",
   headerBg: "#f7f8fa",
-  headerBorder: "rgba(26,79,160,0.14)",
-  headerShadow: "0 1px 0 rgba(26,79,160,0.07), 0 4px 20px rgba(0,0,0,0.06)",
-  tabActiveBg: "rgba(26,79,160,0.07)",
-  tabActiveCol: "#1a4fa0"
+  headerBorder: "rgba(0,0,0,0.1)",
+  headerShadow: "0 1px 0 rgba(0,0,0,0.06), 0 4px 20px rgba(0,0,0,0.06)",
+  tabActiveBg: "rgba(0,0,0,0.07)",
+  tabActiveCol: "#000000"
 };
 
 var F_MONO = "'JetBrains Mono',monospace";
@@ -961,13 +961,17 @@ function NVLogo(_ref) {
 
 // ─── LOCK SCREEN ─────────────────────────────────────────────────────────────
 var NV_LOCK_KEY = "nv_unlocked";
-var NV_LOCK_HASH = "8a384029";
+var NV_LOCK_HASH_DEFAULT = "8a384029";
+var NV_LOCK_HASH_KEY = "nv_lock_hash";
 function nvHash(s) {
   var h = 0;
   for (var i = 0; i < s.length; i++) {
     h = ((h << 5) - h + s.charCodeAt(i)) | 0;
   }
   return (h >>> 0).toString(16).padStart(8, "0");
+}
+function nvGetHash() {
+  try { return localStorage.getItem(NV_LOCK_HASH_KEY) || NV_LOCK_HASH_DEFAULT; } catch(e) { return NV_LOCK_HASH_DEFAULT; }
 }
 function LockScreen(_ref_lock) {
   var onUnlock = _ref_lock.onUnlock;
@@ -995,7 +999,7 @@ function LockScreen(_ref_lock) {
   var lockBg = isDark ? "#05070A" : "#fafafa";
   React.useEffect(function() { if (inputRef.current) inputRef.current.focus(); }, []);
   function tryUnlock() {
-    if (nvHash(pw) === NV_LOCK_HASH) {
+    if (nvHash(pw) === nvGetHash()) {
       try { localStorage.setItem(NV_LOCK_KEY, "1"); } catch(e) {}
       onUnlock();
     } else {
@@ -5197,6 +5201,19 @@ function NVJournal() {
     _useState66 = _slicedToArray(_useState65, 2),
     showSettings = _useState66[0],
     setShowSettings = _useState66[1];
+  var _usePwChg = useState(false), _usePwChg2 = _slicedToArray(_usePwChg, 2), pwChangeOpen = _usePwChg2[0], setPwChangeOpen = _usePwChg2[1];
+  var _usePwCur = useState(""), _usePwCur2 = _slicedToArray(_usePwCur, 2), pwCur = _usePwCur2[0], setPwCur = _usePwCur2[1];
+  var _usePwNew = useState(""), _usePwNew2 = _slicedToArray(_usePwNew, 2), pwNew = _usePwNew2[0], setPwNew = _usePwNew2[1];
+  var _usePwConf = useState(""), _usePwConf2 = _slicedToArray(_usePwConf, 2), pwConf = _usePwConf2[0], setPwConf = _usePwConf2[1];
+  var _usePwErr = useState(""), _usePwErr2 = _slicedToArray(_usePwErr, 2), pwErr = _usePwErr2[0], setPwErr = _usePwErr2[1];
+  function submitPwChange() {
+    if (nvHash(pwCur) !== nvGetHash()) { setPwErr("Current password incorrect"); return; }
+    if (pwNew.length < 4) { setPwErr("New password too short"); return; }
+    if (pwNew !== pwConf) { setPwErr("Passwords don't match"); return; }
+    try { localStorage.setItem(NV_LOCK_HASH_KEY, nvHash(pwNew)); } catch(e) {}
+    setPwChangeOpen(false); setPwCur(""); setPwNew(""); setPwConf(""); setPwErr("");
+    showToast("Password updated");
+  }
   // ── Calculator state lifted here to survive clock re-renders ──
   var _useState67 = useState(function () {
       return localStorage.getItem("nv_calc_mode") || "futures";
@@ -8111,9 +8128,27 @@ function NVJournal() {
   }, /*#__PURE__*/React.createElement("svg", {
     viewBox: "0 0 200 200",
     style: {
-      position: "fixed", right: -50, bottom: -50,
-      width: 420, height: 420,
-      opacity: isDark ? 0.028 : 0.035,
+      position: "fixed", right: 10, bottom: 10,
+      width: 320, height: 320,
+      opacity: isDark ? 0.016 : 0.022,
+      pointerEvents: "none", zIndex: 0,
+      color: C.text
+    }
+  },
+    /*#__PURE__*/React.createElement("circle", { cx: 100, cy: 100, r: 88, fill: "none", stroke: "currentColor", strokeWidth: 5.5 }),
+    /*#__PURE__*/React.createElement("line", { x1: 100, y1: 42, x2: 100, y2: 148, stroke: "currentColor", strokeWidth: 4.5, strokeLinecap: "round" }),
+    /*#__PURE__*/React.createElement("circle", { cx: 100, cy: 159, r: 5, fill: "currentColor" }),
+    /*#__PURE__*/React.createElement("rect", { x: 30, y: 58, width: 10, height: 72, fill: "currentColor" }),
+    /*#__PURE__*/React.createElement("rect", { x: 80, y: 58, width: 10, height: 72, fill: "currentColor" }),
+    /*#__PURE__*/React.createElement("polygon", { points: "30,58 40,58 90,130 80,130", fill: "currentColor" }),
+    /*#__PURE__*/React.createElement("polygon", { points: "110,58 121,58 143,124 132,124", fill: "currentColor" }),
+    /*#__PURE__*/React.createElement("polygon", { points: "158,58 169,58 147,124 136,124", fill: "currentColor" })
+  ), /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 200 200",
+    style: {
+      position: "fixed", left: 20, top: 120,
+      width: 320, height: 320,
+      opacity: isDark ? 0.016 : 0.022,
       pointerEvents: "none", zIndex: 0,
       color: C.text
     }
@@ -8360,24 +8395,20 @@ function NVJournal() {
       alignItems: "center",
       gap: 8
     }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: C.textDim
-    }
-  }, "Theme:"), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("button", {
     type: "button",
-    onClick: function onClick() { return setIsDark(function(d) { return !d; }); },
-    style: {
-      display: "flex", alignItems: "center", gap: 5,
-      padding: "4px 14px",
-      background: "transparent",
-      border: "1px solid ".concat(C.border),
-      borderRadius: 6,
-      color: C.textMid,
-      fontSize: 11
-    }
-  }, React.createElement("span", null, isDark ? "\u2600\uFE0F" : "\uD83C\uDF19"), React.createElement("span", null, isDark ? "Light" : "Dark")),
+    onClick: function() { setPwChangeOpen(function(v) { return !v; }); setPwErr(""); },
+    style: { padding: "4px 12px", background: pwChangeOpen ? C.accentGlow : "transparent", border: "1px solid " + (pwChangeOpen ? C.accent : C.border), borderRadius: 6, color: pwChangeOpen ? C.accent : C.textMid, fontSize: 11, fontFamily: F_MONO, cursor: "pointer" }
+  }, "\uD83D\uDD12 Change Password"),
+  pwChangeOpen && /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", alignItems: "center", gap: 6 }
+  },
+    /*#__PURE__*/React.createElement("input", { type: "password", placeholder: "Current", value: pwCur, onChange: function(e) { setPwCur(e.target.value); }, style: { width: 90, padding: "4px 8px", background: C.inputBg, border: "1px solid " + C.border, borderRadius: 5, color: C.text, fontSize: 11, fontFamily: F_MONO, outline: "none" } }),
+    /*#__PURE__*/React.createElement("input", { type: "password", placeholder: "New", value: pwNew, onChange: function(e) { setPwNew(e.target.value); }, style: { width: 80, padding: "4px 8px", background: C.inputBg, border: "1px solid " + C.border, borderRadius: 5, color: C.text, fontSize: 11, fontFamily: F_MONO, outline: "none" } }),
+    /*#__PURE__*/React.createElement("input", { type: "password", placeholder: "Confirm", value: pwConf, onChange: function(e) { setPwConf(e.target.value); }, onKeyDown: function(e) { if (e.key === "Enter") submitPwChange(); }, style: { width: 80, padding: "4px 8px", background: C.inputBg, border: "1px solid " + C.border, borderRadius: 5, color: C.text, fontSize: 11, fontFamily: F_MONO, outline: "none" } }),
+    /*#__PURE__*/React.createElement("button", { type: "button", onClick: submitPwChange, style: { padding: "4px 12px", background: C.green + "22", border: "1px solid " + C.green, borderRadius: 5, color: C.green, fontSize: 11, fontFamily: F_MONO, cursor: "pointer" } }, "Save"),
+    pwErr && /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, color: C.red, fontFamily: F_MONO } }, pwErr)
+  ),
   /*#__PURE__*/React.createElement("span", {
     style: { fontSize: 11, color: C.textDim, marginLeft: 12 }
   }, "Danger zone:"), /*#__PURE__*/React.createElement("button", {
@@ -8472,14 +8503,14 @@ function NVJournal() {
       var weekendPositive = weekR >= 0;
 
       var accentCol = syncError ? C.red
-        : mode === "weekend" ? (isDark ? (weekendPositive ? "rgba(61,214,140,0.45)" : "rgba(240,100,100,0.45)") : (weekendPositive ? "#5a9e72" : "#b05050"))
+        : mode === "weekend" ? (isDark ? (weekendPositive ? "rgba(61,214,140,0.85)" : "rgba(240,100,100,0.85)") : (weekendPositive ? "#5a9e72" : "#b05050"))
         : mode === "live" ? (biasText ? C.green : C.yellow)
         : mode === "pre" ? C.yellow
         : mode === "eod" ? (todayR >= 0 ? C.green : C.red)
         : C.textMid;
 
       var barBg = isDark
-        ? (mode === "weekend" ? (weekendPositive ? "rgba(10,22,14,0.97)" : "rgba(22,10,10,0.97)")
+        ? (mode === "weekend" ? (weekendPositive ? "rgba(12,28,18,0.97)" : "rgba(28,12,12,0.97)")
           : syncError ? "rgba(30,8,8,0.98)"
           : mode === "live" && biasText ? "rgba(8,20,10,0.98)"
           : mode === "live" ? "rgba(26,18,0,0.98)"
@@ -8692,7 +8723,7 @@ function NVJournal() {
     }
   }), tradesView !== "Gallery" && /*#__PURE__*/React.createElement(Periods, null))), /*#__PURE__*/React.createElement("div", {
     style: {
-      maxWidth: 1440,
+      maxWidth: 1200,
       margin: "0 auto",
       padding: "18px 22px"
     }
