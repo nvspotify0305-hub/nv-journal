@@ -4963,7 +4963,7 @@ function MacroTab() {
     try{ email=localStorage.getItem('nv_mfxbook_email'); pass=localStorage.getItem('nv_mfxbook_pass'); }catch(e){}
     if(!email||!pass) return Promise.reject('configure');
     if(_mfxLoginPromise) return _mfxLoginPromise;
-    _mfxLoginPromise = fetch('https://www.myfxbook.com/api/login.json?email='+encodeURIComponent(email)+'&password='+encodeURIComponent(pass))
+    _mfxLoginPromise = fetch('https://nv-macro.nv-trading23.workers.dev/mfxbook-login?email='+encodeURIComponent(email)+'&password='+encodeURIComponent(pass))
       .then(function(r){return r.json();})
       .then(function(res){
         _mfxLoginPromise=null;
@@ -5038,45 +5038,33 @@ function MacroTab() {
   function fetchCalendar() {
     var cached = getCache('calendar');
     if(cached){ setCalData(cached); setErr('calendar',null); setLoad('calendar',false); return; }
-    getMfxSession().then(function(token){
-      var now=new Date(), dow=now.getUTCDay();
-      var mon=new Date(now); mon.setUTCDate(now.getUTCDate()-(dow===0?6:dow-1)); mon.setUTCHours(0,0,0,0);
-      var sun=new Date(mon); sun.setUTCDate(mon.getUTCDate()+6); sun.setUTCHours(23,59,59,0);
-      function fmt(d){ return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0')+' '+String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0')+':'+String(d.getUTCSeconds()).padStart(2,'0'); }
-      var url='https://www.myfxbook.com/api/get-economic-calendar.json?session='+encodeURIComponent(token)+'&start='+encodeURIComponent(fmt(mon))+'&end='+encodeURIComponent(fmt(sun));
-      return fetch(url).then(function(r){return r.json();}).then(function(res){
-        if(res.error===false&&res.calendar){
-          var filtered=res.calendar.filter(function(ev){ return parseInt(ev.impact)>=3&&['USD','EUR','GBP'].indexOf(ev.country)!==-1; });
-          var events=filtered.map(function(ev){
-            var d=new Date(ev.date.replace(' ','T')+'Z');
-            var localMs=d.getTime()+tzOff*3600*1000;
-            var ld=new Date(localMs);
-            var hh=String(ld.getUTCHours()).padStart(2,'0'), mm=String(ld.getUTCMinutes()).padStart(2,'0');
-            var dateStr=new Date(d.getTime()).toISOString().slice(0,10);
-            var dayLabel=ld.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'});
-            return {time:hh+':'+mm,utcH:d.getUTCHours(),date:dateStr,day:dayLabel,cur:ev.country,name:ev.title,forecast:ev.forecast||'—',previous:ev.previous||'—',actual:ev.actual||null};
-          });
-          var byDate={};
-          events.forEach(function(ev){ if(!byDate[ev.date])byDate[ev.date]=[]; byDate[ev.date].push(ev); });
-          var data={events:events,byDate:byDate};
-          setCalData(data); setErr('calendar',null); setCache('calendar',data); setLoad('calendar',false);
-        } else {
-          try{localStorage.removeItem('nv_mfxbook_session');}catch(e){}
-          setErr('calendar','Calendar unavailable'); setLoad('calendar',false);
-        }
-      });
-    }).catch(function(err){
-      if(err==='configure') setErr('calendar','Connect MyFxBook account in Settings');
-      else setErr('calendar', typeof err==='string'?err:'Unavailable');
-      setLoad('calendar',false);
-    });
+    fetch('https://nv-macro.nv-trading23.workers.dev/ff-calendar')
+      .then(function(r){ return r.json(); })
+      .then(function(raw){
+        if(!Array.isArray(raw)) throw new Error('bad response');
+        var filtered=raw.filter(function(ev){ return ev.impact==='High'&&['USD','EUR','GBP'].indexOf(ev.country)!==-1; });
+        var events=filtered.map(function(ev){
+          var d=new Date(ev.date);
+          var localMs=d.getTime()+tzOff*3600*1000;
+          var ld=new Date(localMs);
+          var hh=String(ld.getUTCHours()).padStart(2,'0'), mm=String(ld.getUTCMinutes()).padStart(2,'0');
+          var dateStr=d.toISOString().slice(0,10);
+          var dayLabel=ld.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'});
+          return {time:hh+':'+mm,utcH:d.getUTCHours(),date:dateStr,day:dayLabel,cur:ev.country,name:ev.title,forecast:ev.forecast||'—',previous:ev.previous||'—',actual:ev.actual||null};
+        });
+        var byDate={};
+        events.forEach(function(ev){ if(!byDate[ev.date])byDate[ev.date]=[]; byDate[ev.date].push(ev); });
+        var data={events:events,byDate:byDate};
+        setCalData(data); setErr('calendar',null); setCache('calendar',data); setLoad('calendar',false);
+      })
+      .catch(function(){ setErr('calendar','Unavailable'); setLoad('calendar',false); });
   }
 
   function fetchSentiment() {
     var cached = getCache('sentiment');
     if(cached){ setSentiment(cached); setErr('sentiment',null); setLoad('sentiment',false); return; }
     getMfxSession().then(function(token){
-      return fetch('https://www.myfxbook.com/api/get-community-outlook.json?session='+encodeURIComponent(token))
+      return fetch('https://nv-macro.nv-trading23.workers.dev/mfxbook-outlook?session='+encodeURIComponent(token))
         .then(function(r){return r.json();})
         .then(function(res){
           if(res.error===false&&res.symbols){
@@ -11308,7 +11296,7 @@ function NVJournal() {
       fontFamily: F_MONO,
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v71")), lightboxImg && /*#__PURE__*/React.createElement("div", {
+  }, "NV JOURNAL - v72")), lightboxImg && /*#__PURE__*/React.createElement("div", {
       onClick: function(){setLightboxImg(null);},
       style:{position:"fixed",inset:0,zIndex:600,background:"rgba(0,0,0,0.94)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out"}
     },
