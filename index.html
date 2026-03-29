@@ -4948,8 +4948,9 @@ function MacroTab() {
   var _p = React.useState(null); var prices = _p[0], setPrices = _p[1];
   var _cal = React.useState(null); var calData = _cal[0], setCalData = _cal[1];
   var _sent = React.useState(null); var sentiment = _sent[0], setSentiment = _sent[1];
-  var _ld = React.useState({prices:true,calendar:true,sentiment:true}); var loading = _ld[0], setLoading = _ld[1];
+  var _ld = React.useState({prices:true,calendar:true,sentiment:true,cot:true}); var loading = _ld[0], setLoading = _ld[1];
   var _er = React.useState({}); var errors = _er[0], setErrors = _er[1];
+  var _cot = React.useState(null); var cot = _cot[0], setCot = _cot[1];
   var _dx = React.useState(function(){ try{ return localStorage.getItem('nv_dxy_bias')||'Neutral'; }catch(e){ return 'Neutral'; } });
   var dxyBias = _dx[0], setDxyBias = _dx[1];
 
@@ -4958,7 +4959,7 @@ function MacroTab() {
     try {
       var c = JSON.parse(localStorage.getItem(CACHE_KEY)||'{}');
       var e = c[k]; if(!e) return null;
-      var ttl = {prices:30*60*1000,calendar:4*60*60*1000,sentiment:60*60*1000}[k]||30*60*1000;
+      var ttl = {prices:30*60*1000,calendar:4*60*60*1000,sentiment:60*60*1000,cot:24*60*60*1000}[k]||30*60*1000;
       return Date.now()-e.ts > ttl ? null : e.data;
     } catch(e){ return null; }
   }
@@ -5076,7 +5077,32 @@ function MacroTab() {
       }).catch(function(){ setErr('sentiment','Unavailable'); setLoad('sentiment',false); });
   }
 
-  React.useEffect(function(){ fetchPrices(); fetchCalendar(); fetchSentiment(); }, []);
+  function fetchCOT() {
+    var cached = getCache('cot');
+    if(cached){ setCot(cached); setLoad('cot',false); return; }
+    var BASE = 'https://publicreporting.cftc.gov/resource/gpe5-46if.json';
+    var SEL = '$select=report_date_as_yyyy_mm_dd,asset_mgr_positions_long,asset_mgr_positions_short,lev_money_positions_long,lev_money_positions_short&$limit=2&$order=report_date_as_yyyy_mm_dd%20DESC';
+    var pairs = [
+      {label:'EUR Futures', mkt:'EURO FX'},
+      {label:'GBP Futures', mkt:'BRITISH POUND'}
+    ];
+    Promise.all(pairs.map(function(p){
+      var url = BASE + '?contract_market_name=' + encodeURIComponent(p.mkt) + '&' + SEL;
+      return fetch(url).then(function(r){return r.json();}).then(function(recs){
+        if(!recs||recs.length<1) return null;
+        var cur=recs[0], prev=recs[1]||null;
+        function net(r){ return (parseFloat(r.asset_mgr_positions_long)||0)+(parseFloat(r.lev_money_positions_long)||0) - (parseFloat(r.asset_mgr_positions_short)||0) - (parseFloat(r.lev_money_positions_short)||0); }
+        var n=net(cur), np=prev?net(prev):null, wow=np!==null?n-np:null;
+        return {label:p.mkt==='EURO FX'?'EUR Futures':'GBP Futures', net:Math.round(n), wow:wow!==null?Math.round(wow):null, bullish:n>0, date:(cur.report_date_as_yyyy_mm_dd||'').slice(0,10)};
+      }).catch(function(){return null;});
+    })).then(function(data){
+      var valid=data.filter(Boolean);
+      if(valid.length>0){ setCot(valid); setCache('cot',valid); } else { setErr('cot','Unavailable'); }
+      setLoad('cot',false);
+    }).catch(function(){ setErr('cot','Unavailable'); setLoad('cot',false); });
+  }
+
+  React.useEffect(function(){ fetchPrices(); fetchCalendar(); fetchSentiment(); fetchCOT(); }, []);
 
   var SESSION_RANGES = [
     {key:'london', label:'LONDON OPEN', utcStart:7, utcEnd:12},
@@ -5281,21 +5307,27 @@ function MacroTab() {
       ),
       /*#__PURE__*/React.createElement(Card, null,
         /*#__PURE__*/React.createElement("span",{className:"lbl",style:{marginBottom:12}},"COT \u2014 Futures Positioning (CFTC)"),
-        /*#__PURE__*/React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:10}},
-          [{label:"EUR Futures",net:45231,wow:2341,bullish:true},{label:"GBP Futures",net:-12456,wow:-890,bullish:false}].map(function(c){
-            var col=c.bullish?C.green:C.red, wc=c.wow>0?C.green:C.red;
-            return /*#__PURE__*/React.createElement("div",{key:c.label,style:{padding:"12px 14px",background:C.surfaceHigh,borderRadius:8}},
-              /*#__PURE__*/React.createElement("div",{style:{fontSize:9,color:C.textDim,letterSpacing:".08em",marginBottom:6}},c.label),
-              /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"baseline",gap:8,marginBottom:4}},
-                /*#__PURE__*/React.createElement("span",{style:{fontFamily:"'Bebas Neue'",fontSize:22,color:col,lineHeight:1}},(c.net>0?"+":"")+c.net.toLocaleString()),
-                /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textDim}},"net contracts")
-              ),
-              /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:col,marginBottom:4}},c.bullish?"Net Long — Institutional Bullish":"Net Short — Institutional Bearish"),
-              /*#__PURE__*/React.createElement("div",{style:{fontSize:9,color:wc}},"WoW: "+(c.wow>0?"+":"")+c.wow.toLocaleString()+(c.wow>0?" ▲":" ▼"))
-            );
-          })
-        ),
-        /*#__PURE__*/React.createElement("div",{style:{fontSize:9,color:C.textDim,borderTop:"1px solid "+C.border,paddingTop:8,marginTop:10}},"Source: CFTC \u00b7 Weekly \u00b7 Live data coming soon")
+        loading.cot ? Spinner :
+        errors.cot ? /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textDim}},errors.cot) :
+        cot ? /*#__PURE__*/React.createElement(React.Fragment,null,
+          /*#__PURE__*/React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:10}},
+            cot.map(function(c){
+              var col=c.bullish?C.green:C.red;
+              var wc=c.wow===null?C.textDim:c.wow>0?C.green:c.wow<0?C.red:C.textDim;
+              return /*#__PURE__*/React.createElement("div",{key:c.label,style:{padding:"12px 14px",background:C.surfaceHigh,borderRadius:8}},
+                /*#__PURE__*/React.createElement("div",{style:{fontSize:9,color:C.textDim,letterSpacing:".08em",marginBottom:6}},c.label),
+                /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"baseline",gap:8,marginBottom:4}},
+                  /*#__PURE__*/React.createElement("span",{style:{fontFamily:"'Bebas Neue'",fontSize:22,color:col,lineHeight:1}},(c.net>0?"+":"")+c.net.toLocaleString()),
+                  /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textDim}},"net contracts")
+                ),
+                /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:col,marginBottom:4}},c.bullish?"Net Long — Institutional Bullish":"Net Short — Institutional Bearish"),
+                c.wow!==null && /*#__PURE__*/React.createElement("div",{style:{fontSize:9,color:wc}},"WoW: "+(c.wow>0?"+":"")+c.wow.toLocaleString()+(c.wow>0?" ▲":c.wow<0?" ▼":" —"))
+              );
+            })
+          ),
+          /*#__PURE__*/React.createElement("div",{style:{fontSize:9,color:C.textDim,borderTop:"1px solid "+C.border,paddingTop:8,marginTop:10}},
+            "Source: CFTC \u00b7 Weekly \u00b7 As of "+(cot[0]&&cot[0].date?cot[0].date:'—'))
+        ) : null
       )
     )
   );
@@ -11249,7 +11281,7 @@ function NVJournal() {
       fontFamily: F_MONO,
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v69")), lightboxImg && /*#__PURE__*/React.createElement("div", {
+  }, "NV JOURNAL - v70")), lightboxImg && /*#__PURE__*/React.createElement("div", {
       onClick: function(){setLightboxImg(null);},
       style:{position:"fixed",inset:0,zIndex:600,background:"rgba(0,0,0,0.94)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out"}
     },
