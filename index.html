@@ -5063,27 +5063,29 @@ function MacroTab() {
   function fetchSentiment() {
     var cached = getCache('sentiment');
     if(cached){ setSentiment(cached); setErr('sentiment',null); setLoad('sentiment',false); return; }
-    getMfxSession().then(function(token){
-      return fetch('https://nv-macro.nv-trading23.workers.dev/mfxbook-outlook?session='+encodeURIComponent(token))
-        .then(function(r){return r.json();})
-        .then(function(res){
-          if(res.error===false&&res.symbols){
-            var data=['EURUSD','GBPUSD','USDJPY','USDCHF'].map(function(pair){
-              var s=res.symbols.find(function(x){return x.name===pair;});
-              return s?{pair:pair,long:Math.round(parseFloat(s.longPercentage)),short:Math.round(parseFloat(s.shortPercentage))}:null;
-            }).filter(Boolean);
-            setSentiment(data); setErr('sentiment',null); setCache('sentiment',data);
-          } else {
-            try{localStorage.removeItem('nv_mfxbook_session');}catch(e){}
-            setErr('sentiment','Session expired');
-          }
-          setLoad('sentiment',false);
-        });
-    }).catch(function(err){
-      if(err==='configure') setErr('sentiment','configure');
-      else setErr('sentiment', typeof err==='string'?err:'Unavailable');
-      setLoad('sentiment',false);
-    });
+    var BASE = 'https://publicreporting.cftc.gov/resource/gpe5-46if.json';
+    var pairs = [
+      {label:'EURUSD', mkt:'EURO FX'},
+      {label:'GBPUSD', mkt:'BRITISH POUND'}
+    ];
+    Promise.all(pairs.map(function(p){
+      var url = BASE + '?contract_market_name=' + encodeURIComponent(p.mkt) +
+        '&$select=nonrept_positions_long_all,nonrept_positions_short_all' +
+        '&$limit=1&$order=report_date_as_yyyy_mm_dd%20DESC';
+      return fetch(url).then(function(r){return r.json();}).then(function(recs){
+        if(!recs||!recs.length) return null;
+        var rec = recs[0];
+        var lg = parseFloat(rec.nonrept_positions_long_all)||0;
+        var sh = parseFloat(rec.nonrept_positions_short_all)||0;
+        var total = lg + sh;
+        if(!total) return null;
+        return {pair:p.label, long:Math.round(lg/total*100), short:Math.round(sh/total*100)};
+      }).catch(function(){return null;});
+    })).then(function(data){
+      var valid = data.filter(Boolean);
+      if(!valid.length){ setErr('sentiment','Unavailable'); setLoad('sentiment',false); return; }
+      setSentiment(valid); setErr('sentiment',null); setCache('sentiment',valid); setLoad('sentiment',false);
+    }).catch(function(){ setErr('sentiment','Unavailable'); setLoad('sentiment',false); });
   }
 
   function fetchCOT() {
@@ -5291,13 +5293,8 @@ function MacroTab() {
     /* ROW 3: Sentiment + COT */
     /*#__PURE__*/React.createElement("div",{style:{display:"grid",gridTemplateColumns:bp.isMobile?"1fr":"1fr 1fr",gap:12}},
       /*#__PURE__*/React.createElement(Card, null,
-        /*#__PURE__*/React.createElement("span",{className:"lbl",style:{marginBottom:12}},"Retail Sentiment — MyFxBook"),
+        /*#__PURE__*/React.createElement("span",{className:"lbl",style:{marginBottom:12}},"Retail Positioning — CFTC"),
         loading.sentiment ? Spinner :
-        errors.sentiment==='configure' ?
-          /*#__PURE__*/React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:6,padding:"12px 0"}},
-            /*#__PURE__*/React.createElement("span",{style:{fontSize:11,color:C.textDim}},"Connect your MyFxBook account"),
-            /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textDim}},"Settings \u2192 Add MyFxBook email + password")
-          ) :
         errors.sentiment ?
           /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textDim}},errors.sentiment) :
         sentiment ? sentiment.map(function(r){
