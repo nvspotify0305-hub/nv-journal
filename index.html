@@ -4993,46 +4993,55 @@ function MacroTab() {
   function fetchPrices() {
     var cached = getCache('prices');
     if(cached){ setPrices(cached); setLoad('prices',false); return; }
-    var today = new Date();
-    var yest = new Date(today-86400000);
-    var ymd = function(d){ return d.toISOString().slice(0,10); };
-    Promise.all([
-      fetch('https://api.frankfurter.app/latest?from=USD&to=EUR,GBP,JPY,CHF,AUD').then(function(r){return r.json();}),
-      fetch('https://api.frankfurter.app/'+ymd(yest)+'?from=USD&to=EUR,GBP,JPY,CHF,AUD').then(function(r){return r.json();}),
-      fetch('https://api.gold-api.com/price/XAU').then(function(r){return r.json();}).catch(function(){return null;})
-    ]).then(function(res){
-      var lat=res[0], prev=res[1], gold=res[2];
-      function pd(pair) {
-        var inv = pair==='EURUSD'||pair==='GBPUSD'||pair==='AUDUSD';
-        var cur = pair==='EURUSD'?'EUR':pair==='GBPUSD'?'GBP':pair==='USDJPY'?'JPY':pair==='USDCHF'?'CHF':'AUD';
-        var dp = pair==='USDJPY' ? 3 : 5;
-        var now = inv ? 1/lat.rates[cur] : lat.rates[cur];
-        var was = inv ? 1/prev.rates[cur] : prev.rates[cur];
-        var chg = now-was, pct = chg/was*100;
-        return { price: now.toFixed(dp), chg:(chg>=0?'+':'')+chg.toFixed(dp), chgPct:(pct>=0?'+':'')+pct.toFixed(2)+'%', up:chg>=0 };
-      }
-      var gp = gold?(gold.price||gold.XAU||null):null;
-      var gpr = gold?(gold.prev_close_price||null):null;
-      var gchg = gp&&gpr ? gp-gpr : null;
-      var signals = [
-        {label:'Gold (XAUUSD)', riskOff: gchg!==null?gchg>0:null, dir: gchg!==null?(gchg>0?'▲ Rising':'▼ Falling'):'—'},
-        {label:'JPY (USDJPY)',  riskOff: !pd('USDJPY').up,  dir: pd('USDJPY').up?'▲ Rising':'▼ Falling'},
-        {label:'CHF (USDCHF)', riskOff: !pd('USDCHF').up,  dir: pd('USDCHF').up?'▲ Rising':'▼ Falling'},
-        {label:'AUD (AUDUSD)', riskOff: !pd('AUDUSD').up,  dir: pd('AUDUSD').up?'▲ Rising':'▼ Falling'}
-      ];
-      var validSigs = signals.filter(function(s){return s.riskOff!==null;});
-      var roffCount = validSigs.filter(function(s){return s.riskOff;}).length;
-      var riskLabel = roffCount>=3?'Risk Off':roffCount<=1?'Risk On':'Neutral';
-      var riskCol = roffCount>=3?C.red:roffCount<=1?C.green:C.yellow;
-      var riskConf = (roffCount===4||roffCount===0)?'High':(roffCount===3||roffCount===1)?'Moderate':'Mixed';
-      var data = {
-        eurusd:pd('EURUSD'), gbpusd:pd('GBPUSD'), usdjpy:pd('USDJPY'), usdchf:pd('USDCHF'), audusd:pd('AUDUSD'),
-        gold: gp ? {price:gp.toFixed(2), chg:gchg!==null?(gchg>=0?'+':'')+gchg.toFixed(2):'—', chgPct:gchg!==null&&gpr?(gchg>=0?'+':'')+((gchg/gpr)*100).toFixed(2)+'%':'—', up:gchg!==null?gchg>=0:null} : null,
-        riskSignals:signals, riskOff:roffCount, riskLabel:riskLabel, riskCol:riskCol, riskConf:riskConf,
-        ts: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})
-      };
-      setPrices(data); setCache('prices',data); setLoad('prices',false);
-    }).catch(function(){ setErr('prices','Failed to load'); setLoad('prices',false); });
+    // Step 1: fetch latest FX to get actual current business date
+    fetch('https://api.frankfurter.app/latest?from=USD&to=EUR,GBP,JPY,CHF,AUD')
+      .then(function(r){return r.json();})
+      .then(function(lat){
+        // Step 2: previous business day based on actual latest date (skips weekends)
+        var d = new Date(lat.date+'T12:00:00Z');
+        d = new Date(d.getTime()-86400000);
+        while(d.getUTCDay()===0||d.getUTCDay()===6){ d=new Date(d.getTime()-86400000); }
+        var prevStr = d.toISOString().slice(0,10);
+        return Promise.all([
+          Promise.resolve(lat),
+          fetch('https://api.frankfurter.app/'+prevStr+'?from=USD&to=EUR,GBP,JPY,CHF,AUD').then(function(r){return r.json();}),
+          fetch('https://api.gold-api.com/price/XAU').then(function(r){return r.json();}).catch(function(){return null;}),
+          fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@'+prevStr+'/v1/currencies/xau.min.json').then(function(r){return r.json();}).catch(function(){return null;})
+        ]);
+      })
+      .then(function(res){
+        var lat=res[0], prev=res[1], goldNow=res[2], goldPrev=res[3];
+        function pd(pair) {
+          var inv = pair==='EURUSD'||pair==='GBPUSD'||pair==='AUDUSD';
+          var cur = pair==='EURUSD'?'EUR':pair==='GBPUSD'?'GBP':pair==='USDJPY'?'JPY':pair==='USDCHF'?'CHF':'AUD';
+          var dp = pair==='USDJPY' ? 3 : 5;
+          var now = inv ? 1/lat.rates[cur] : lat.rates[cur];
+          var was = inv ? 1/prev.rates[cur] : prev.rates[cur];
+          var chg = now-was, pct = chg/was*100;
+          return { price: now.toFixed(dp), chg:(chg>=0?'+':'')+chg.toFixed(dp), chgPct:(pct>=0?'+':'')+pct.toFixed(2)+'%', up:chg>=0 };
+        }
+        var gp = goldNow?(goldNow.price||null):null;
+        var gpr = (goldPrev&&goldPrev.xau&&goldPrev.xau.usd)?goldPrev.xau.usd:null;
+        var gchg = gp&&gpr ? gp-gpr : null;
+        var signals = [
+          {label:'Gold (XAUUSD)', riskOff: gchg!==null?gchg>0:null, dir: gchg!==null?(gchg>0?'▲ Rising':'▼ Falling'):'—'},
+          {label:'JPY (USDJPY)',  riskOff: !pd('USDJPY').up,  dir: pd('USDJPY').up?'▲ Rising':'▼ Falling'},
+          {label:'CHF (USDCHF)', riskOff: !pd('USDCHF').up,  dir: pd('USDCHF').up?'▲ Rising':'▼ Falling'},
+          {label:'AUD (AUDUSD)', riskOff: !pd('AUDUSD').up,  dir: pd('AUDUSD').up?'▲ Rising':'▼ Falling'}
+        ];
+        var validSigs = signals.filter(function(s){return s.riskOff!==null;});
+        var roffCount = validSigs.filter(function(s){return s.riskOff;}).length;
+        var riskLabel = roffCount>=3?'Risk Off':roffCount<=1?'Risk On':'Neutral';
+        var riskCol = roffCount>=3?C.red:roffCount<=1?C.green:C.yellow;
+        var riskConf = (validSigs.length===0)?'—':(roffCount===validSigs.length||roffCount===0)?'High':(Math.abs(roffCount-validSigs.length+roffCount)<=1)?'Moderate':'Mixed';
+        var data = {
+          eurusd:pd('EURUSD'), gbpusd:pd('GBPUSD'), usdjpy:pd('USDJPY'), usdchf:pd('USDCHF'), audusd:pd('AUDUSD'),
+          gold: gp ? {price:gp.toFixed(2), chg:gchg!==null?(gchg>=0?'+':'')+gchg.toFixed(2):'—', chgPct:gchg!==null&&gpr?(gchg>=0?'+':'')+((gchg/gpr)*100).toFixed(2)+'%':'—', up:gchg!==null?gchg>=0:null} : null,
+          riskSignals:signals, riskOff:roffCount, riskCount:validSigs.length, riskLabel:riskLabel, riskCol:riskCol, riskConf:riskConf,
+          ts: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})
+        };
+        setPrices(data); setCache('prices',data); setLoad('prices',false);
+      }).catch(function(){ setErr('prices','Failed to load'); setLoad('prices',false); });
   }
 
   function fetchCalendar() {
@@ -5194,7 +5203,7 @@ function MacroTab() {
               ),
               /*#__PURE__*/React.createElement("div",null,
                 /*#__PURE__*/React.createElement("div",{style:{fontFamily:"'Bebas Neue'",fontSize:22,color:prices.riskCol,lineHeight:1}},prices.riskLabel),
-                /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:C.textDim,marginTop:2}},prices.riskOff+" of 4 signals Risk Off"),
+                /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:C.textDim,marginTop:2}},prices.riskOff+" of "+prices.riskCount+" signals Risk Off"),
                 /*#__PURE__*/React.createElement("div",{style:{fontSize:9,color:C.textMid,marginTop:2}},prices.riskConf+" confidence")
               )
             ),
