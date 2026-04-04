@@ -192,20 +192,24 @@ export default {
     /* ── /uk-gilt ── */
     if (path === '/uk-gilt') {
       try {
-        // Try multiple Yahoo Finance ticker variants for UK 10Y Gilt
-        const tickers = ['GB10YT=RR', 'GB10Y=R', '^TNT'];
-        for (const ticker of tickers) {
-          const r = await fetch(
-            `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=5d`,
-            { headers: { 'User-Agent': 'Mozilla/5.0' } }
-          ).then(r => r.json()).catch(() => null);
-          const closes = r?.chart?.result?.[0]?.indicators?.quote?.[0]?.close?.filter(v => v != null) ?? [];
-          if (closes.length > 0) {
-            return json({
-              latest: parseFloat(closes[closes.length - 1].toFixed(3)),
-              prev:   closes.length > 1 ? parseFloat(closes[closes.length - 2].toFixed(3)) : null,
-              ticker,
-            });
+        // 1. Try Bank of England IADB CSV — IUDMNPY = 10Y nominal par yield
+        const boeUrl = 'https://www.bankofengland.co.uk/boeapps/database/_iadb-FromShowColumns.asp?csv.x=yes&Datefrom=01/Jan/2026&Dateto=now&SeriesCodes=IUDMNPY&CSVF=TN&UsingCodes=Y';
+        const boeRaw = await fetch(boeUrl, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/csv,text/plain,*/*' } })
+          .then(r => r.ok ? r.text() : null).catch(() => null);
+        if (boeRaw) {
+          const lines = boeRaw.trim().split('\n').filter(l => l.trim() && !l.startsWith('"') && !l.toLowerCase().startsWith('date'));
+          const vals = lines.map(l => parseFloat(l.split(',').pop())).filter(v => !isNaN(v));
+          if (vals.length > 0) {
+            return json({ latest: parseFloat(vals[vals.length - 1].toFixed(3)), prev: vals.length > 1 ? parseFloat(vals[vals.length - 2].toFixed(3)) : null, source: 'boe' });
+          }
+        }
+        // 2. Fallback: FRED IRLTLT01GBM156N — UK 10Y monthly (stale by ~1 month but real)
+        if (env.FRED_KEY) {
+          const fredR = await fetch(`https://api.stlouisfed.org/fred/series/observations?series_id=IRLTLT01GBM156N&api_key=${env.FRED_KEY}&limit=3&sort_order=desc&file_type=json`)
+            .then(r => r.json()).catch(() => null);
+          const obs = (fredR?.observations || []).filter(o => o.value !== '.');
+          if (obs[0]?.value) {
+            return json({ latest: parseFloat(parseFloat(obs[0].value).toFixed(3)), prev: obs[1]?.value ? parseFloat(parseFloat(obs[1].value).toFixed(3)) : null, source: 'fred-monthly' });
           }
         }
         return json({ latest: null, prev: null });
