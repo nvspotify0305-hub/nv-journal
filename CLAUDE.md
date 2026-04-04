@@ -26,7 +26,7 @@ It is **not** a generic trading journal. Every UI decision, grading rule, and da
 | Persistence | Supabase (primary) + `localStorage` (fallback/cache) |
 | Auth | None — single-user, anon Supabase key |
 | Hosting | GitHub Pages (`master` → `main` branch) |
-| Macro data | Cloudflare Worker (`nv-macro`) — proxies Alpha Vantage, caches in KV |
+| Macro data | Cloudflare Worker (`nv-macro`) — proxies FF Calendar, FRED yields, Yahoo VIX, ECB Bund, Finnhub ETFs. Worker code: `docs/worker-nv-macro.js` |
 | Build tool | `node build.js` in project root — copies pre-compiled file to `index.html` |
 | Framework | React 18 via CDN (`unpkg.com/react@18/umd/react.production.min.js`) |
 
@@ -166,112 +166,20 @@ Price is trading at/from a significant higher-timeframe order block, FVG, or liq
 **Project URL:** `https://sskklvnfmclmfuqpkcpt.supabase.co`
 **Auth:** Anon key (public, stored in app). Single-user, no row-level auth.
 
-All tables use the same minimal schema — app logic lives in the `data` JSONB blob:
+Tables: `trades`, `days`, `crypto`, `prop_firms` — all use `id` + `data jsonb` pattern.
+Storage bucket: `trade-charts` (public) — chart image uploads from Log Trade tab.
+Weekly mindset rows use deterministic IDs: `wr_` + weekKey — prevents duplicate rows on re-render.
 
-```sql
--- All three tables share this pattern
-CREATE TABLE trades (
-  id   bigint PRIMARY KEY,  -- deterministic: timestamp-based or wr_ prefixed
-  data jsonb NOT NULL
-);
-
-CREATE TABLE days (
-  id   bigint PRIMARY KEY,
-  data jsonb NOT NULL
-);
-
-CREATE TABLE crypto (
-  id   bigint PRIMARY KEY,
-  data jsonb NOT NULL
-);
-```
-
-### `trades` — `data` JSONB shape
-```json
-{
-  "id": "string (UUID or deterministic key)",
-  "date": "YYYY-MM-DD",
-  "time": "HH:MM",
-  "session": "7AM | 11AM | 3PM",
-  "pair": "EURUSD | GBPUSD",
-  "direction": "Long | Short",
-  "candleSeq": "C1 | C2 | C3 | C4 | C5+",
-  "result": "Win | Loss | BE",
-  "rr": number,
-  "pnl": number,
-  "grade": "A+ | A | B",
-  "gradeScore": number,
-  "notes": "string",
-  "imageUrl": "string (Supabase Storage URL, optional)",
-  "confluences": {
-    "sweepH4": boolean,
-    "sweepH1": boolean,
-    "smtH4": boolean,
-    "smtH1": boolean,
-    "cisdH1": boolean,
-    "cisdH4": boolean,
-    "psp": boolean,
-    "keyZone": boolean,
-    "displacement": boolean,
-    "discountPremium": boolean,
-    "htfDaily": boolean,
-    "htfH4": boolean,
-    "htfH1": boolean,
-    "h1Phase": "Expansion | Continuation | Manipulation | Consolidation"
-  }
-}
-```
-
-### `days` — `data` JSONB shape
-```json
-{
-  "date": "YYYY-MM-DD",
-  "bias": "Bullish | Bearish | Neutral",
-  "notes": "string",
-  "mindsetRating": 1-5,
-  "mindsetNotes": "string",
-  "weekKey": "string (YYYY-Www)",
-  "weeklyMindsetRating": 1-5,
-  "weeklyMindsetNotes": "string"
-}
-```
-
-> Weekly mindset rows use deterministic IDs: `wr_` + weekKey (e.g. `wr_2026-W11`). This prevents duplicate rows on re-render.
-
-### `crypto` — `data` JSONB shape
-```json
-{
-  "date": "YYYY-MM-DD",
-  "asset": "string",
-  "entry": number,
-  "amount": number,
-  "notes": "string"
-}
-```
-
-### Storage
-- **Bucket:** `trade-charts` (public, anon read/write policy)
-- Used for trade screenshot uploads (Ctrl+V in Log Trade → upload → URL saved in trade JSON)
+> Full schema, field definitions, localStorage keys, sync queue, and SQL: **`docs/SUPABASE.md`**
 
 ---
 
 ## 5. localStorage Keys
 
-| Key | Purpose |
-|---|---|
-| `nv_trades_v5` | Local trade cache |
-| `nv_days_v2` | Local days cache |
-| `nv_crypto_v2` | Local crypto cache |
-| `nv_theme` | `dark` \| `light` |
-| `nv_calc_acct` | Calculator: account size |
-| `nv_calc_risk` | Calculator: risk % |
-| `nv_calc_pips` | Calculator: pip SL |
-| `nv_calc_ticks` | Calculator: tick SL |
-| `nv_calc_mode` | Calculator: FX \| Futures |
-| `nv_tz` | Timezone override |
-| `nv_dst` | DST toggle state |
-| `nv_av_key` | Alpha Vantage key (legacy, replaced by Worker) |
-| `nv_macro_cache` | Macro tab data cache (4hr TTL) |
+Key cache keys: `nv_trades_v5`, `nv_days_v2`, `nv_crypto_v2`, `nv_propfirms_v1`, `nv_macro_v1`, `nv_theme`, `nv_dst`, `nv_tz`.
+**Version suffixes must be bumped on schema changes** — old cache won't auto-migrate.
+
+> Full key list: **`docs/SUPABASE.md`**
 
 ---
 
@@ -279,12 +187,11 @@ CREATE TABLE crypto (
 
 **Worker URL:** `https://nv-macro.nv-trading23.workers.dev`
 
-- Proxies Alpha Vantage (AV key hardcoded in Worker, not in browser)
-- KV namespace: `NV_MACRO` bound as `MACRO_CACHE`
-- Cron: every 15 minutes
-- Computes FX crosses: EURGBP, GBPJPY, EURJPY, CADJPY, EURCAD, GBPCHF, NZDUSD
-- App calls Worker directly — never calls Alpha Vantage from browser
-- App-side cache: `nv_macro_cache` localStorage, 4hr TTL
+- Proxies Forex Factory (CORS-blocked from GitHub Pages)
+- Routes: `/mfxbook-login` (kept, login still works), `/ff-calendar`
+- `/mfxbook-outlook` removed — retail sentiment now sourced from CFTC directly (no Worker)
+- App calls Worker directly — never calls these APIs from browser
+- App-side cache: `nv_macro_v1` localStorage — prices 30min TTL, calendar 4hr, sentiment 1hr
 
 ---
 
@@ -324,124 +231,66 @@ Open `http://localhost:8080` — the app is fully self-contained, no API calls b
 
 ## 8. Color Palette
 
-### Dark Mode
-| Token | Value |
-|---|---|
-| `bg` | `#1c1c1c` |
-| `surface` | `#252525` |
-| `surfaceHigh` | `#2e2e2e` |
-| `border` | `#3d3d3d` |
-| `text` | `#f0f0f0` |
-| `textMid` | `#aaa` |
-| `textDim` | `#777` |
-| `accent` | `#fff` |
-| `inputBg` | `#1e1e1e` |
-| `headerBg` | `#202020` |
-| `headerBorder` | `rgba(255,255,255,0.07)` |
-| `tabActiveBg` | `rgba(255,255,255,0.08)` |
-| `tabActiveCol` | `#ffffff` |
-| `green` | `#3dd68c` |
-| `red` | `#f06464` |
-| `blue` | `#60a5fa` |
-| `yellow` | `#fbbf24` |
+Always use `C.xx` theme tokens — never hardcode hex values. Dark mode: `bg #1c1c1c`, `surface #252525`, `green #3dd68c`, `red #f06464`, `blue #60a5fa`, `yellow #fbbf24`. Light mode: `bg #f0f0f0`, `surface #fff`.
 
-### Light Mode
-| Token | Value |
-|---|---|
-| `bg` | `#f0f0f0` |
-| `surface` | `#fff` |
-| `surfaceHigh` | `#f5f5f5` |
-| `border` | `#ddd` |
-| `text` | `#000` |
-| `textMid` | `#444` |
-| `textDim` | `#999` |
-| `accent` | `#000` |
-| `green` | `#1a6e35` |
-| `red` | `#c0392b` |
-| `blue` | `#1a4fa0` |
-| `yellow` | `#8a6500` |
+> Full token table (dark + light): **`docs/FRONTEND_DESIGN.md`**
 
 ---
 
 ## 9. NV Logo Spec
 
-SVG `viewBox="0 0 200 200"`:
-- Circle: `cx=100 cy=100 r=88`, no fill, stroke width 5.5
-- Vertical line: `x1=100 y1=42 x2=100 y2=148`, stroke-linecap round, width 4.5
-- Dot: circle `cx=100 cy=159 r=5`, filled
-- **N letter:** two rects `x=30,y=58,w=10,h=72` and `x=80,y=58,w=10,h=72`; diagonal polygon `30,58 40,58 90,130 80,130`
-- **V letter:** left polygon `110,58 121,58 143,124 132,124`; right polygon `158,58 169,58 147,124 136,124`
+SVG `viewBox="0 0 200 200"`. React component `NVLogo` must be defined **outside** main component body.
+Do NOT use `ctx.scale()` in canvas rendering — double-scales lineWidth.
+
+> Full SVG coordinates, polygon points, canvas renderer, favicon URI: **`docs/LOGO.md`**
 
 ---
 
-## 10. Active Sprint — Execution Roadmap
+## 10. Active Sprint
+
+**Current version: v72**
 
 | Phase | Status | Description |
 |---|---|---|
-| Phase 1 | ✅ Done | Cloudflare Worker + KV cache + cron trigger |
-| Phase 2 | ⏸ Parked | Grade Model v2 — do not build without explicit instruction |
+| Phase 2 | ❌ Cancelled | Grade Model v2 — confirmed not needed (2026-03-28). Do NOT build. |
 | Phase 3 | Pending | Persistent status bar |
 | Phase 4 | Pending | Pre-session morning brief |
-| Phase 5 | ✅ Done | Funded account tracker — live since v64, enhanced v65/v66 |
-| Phase 6 | ✅ Done | UI polish pass — dark mode Windows-style, neutral header, watermarks, equity curve, maxWidth |
-| Phase 7 | ✅ Done | Gallery + trade image viewer — live in Trades tab |
-| Phase 8 | Pending | Tablet/mobile responsive layout |
-| Phase 9 | Pending | Market Context panel (DXY + economic calendar, no paid API) |
 | Phase 10 | Pending | Sales version — separate repo, strip personal data, light obfuscation, bundle NVTemplate, Gumroad £49 |
 
-### Phase 2 — Grade Model v2 Scope (detailed)
-
-**New input fields to add to Log Trade form:**
-- `h1Phase` selector: Expansion / Continuation / Manipulation / Consolidation
-- `smtH4` checkbox (currently SMT is a single field — split into H4 and H1)
-- `smtH1` checkbox
-- `cisdH4` checkbox (currently only CISD H1 exists)
-- `discountPremium` checkbox
-- `displacement` checkbox (may already exist — verify)
-
-**Fields to remove:**
-- `guConfirm` (GU Confirm — removed in v2)
-- `htfKeyLevel` (merged into `keyZone`)
-
-**Grading function changes:**
-- Rewrite `calculateGrade()` to implement 0–20 scoring per spec in §3
-- Hard blocks: C5+, H1 conflict, no sweep AND no SMT
-- A+/A/B thresholds per §3
-- B is now **tradeable** — remove any UI treatment that marks B as "not tradeable" except for execution filter
-
-**Dashboard/stats impact:**
-- Grade score should be stored in trade JSON for analytics
-- Market Phase stats panel (already built, filtered to March 2026+) needs `h1Phase` data
-
-**Backward compatibility:**
-- Trades stored under v1 grading must **not** be retroactively recalculated
-- `gradeDisplay` reads stored `grade` field — do not trigger recalculation from stored confluences
+> Full feature history, backlog, declined items, version log: **`docs/ROADMAP.md`**
 
 ---
 
-## 11. ~~Macro Tab~~ — Removed
+## 11. Macro Tab — Live (v72) / Rebuild in progress (v73)
 
-The Macro tab has been **permanently removed** (since v65). The free-tier stack (Alpha Vantage + Cloudflare Worker KV) was unreliable. Do not re-add or reference these features.
+All sources route through the Cloudflare Worker or are called directly from the browser (CFTC).
+Worker code: `docs/worker-nv-macro.js`. Standalone test page: `macro-test.html`.
+
+**Worker routes:**
+- `/quotes` → FX rates (Frankfurter — EURUSD, GBPUSD, USDJPY, USDCHF, AUDUSD), Gold (gold-api.com real-time + fawazahmed0 prev close), VIX (Yahoo Finance `^VIX` 5d), DXY (computed from FX basket)
+- `/fred` → US 10Y (`DGS10`), US 2Y (`DGS2`), Yield Curve (`T10Y2Y`), HY Spread (`BAMLH0A0HYM2`) — requires `FRED_KEY` env var
+- `/ecb-bund` → DE 10Y Bund (ECB SDW API)
+- `/uk-gilt` → UK 10Y Gilt (Yahoo Finance multi-ticker fallback — currently returning null, unresolved)
+- `/finnhub` → SPY, QQQ, TLT, HYG, UUP (Finnhub free tier) — requires `FINNHUB_KEY` env var
+- `/ff-calendar` → FF Calendar (`nfs.faireconomy.media/ff_calendar_thisweek.json`)
+
+**Direct browser calls (no Worker):**
+- **Retail positioning:** CFTC `publicreporting.cftc.gov` — non-reportable long/short % for EUR + GBP. Section label: "Retail Positioning — CFTC".
+- **COT:** CFTC API — EUR/GBP asset manager + leveraged money net positioning, WoW change
+
+**Worker env vars** (Cloudflare → Settings → Variables → Secrets):
+- `FRED_KEY` = `040085d7ef6668a63a371dfa37dc107d`
+- `FINNHUB_KEY` = set (masked)
+
+**DXY formula:** `50.14348112 × EURUSD^(-0.576) × USDJPY^(0.136) × GBPUSD^(-0.119) × USDCAD^(0.091) × USDSEK^(0.042) × USDCHF^(0.036)`
 
 ---
 
 ## 12. Commercial Productization Sprint (future)
 
-Tasks required to strip personal data and prepare for distribution:
+> Separate repo from nvbuild. Full task list: **`docs/ROADMAP.md`** (Commercialisation section).
 
-| Task | Notes |
-|---|---|
-| Remove hardcoded Supabase URL + anon key | Replace with env config UI on first launch |
-| Remove hardcoded Worker URL | Make configurable |
-| Remove Alpha Vantage key reference | Worker handles this — confirm no browser-side AV calls remain |
-| Anonymise any personal defaults | Account sizes, risk defaults, timezone defaults |
-| Add onboarding flow | First-launch config screen: Supabase URL, anon key, Worker URL, default risk |
-| Rename `nv_*` localStorage keys | Namespace to user-configurable prefix or generic `journal_*` |
-| Replace NV branding | Config-driven: user sets their own initials/logo or remove entirely |
-| License + README | MIT or proprietary — decide before release |
-| Remove `crypto` tab or make optional | Personal use case — not universally relevant |
-
-> Do not start productization work until Phase 6 (UI polish) is complete. Premature abstraction on an unstable UI wastes time.
+Key decisions made: £49 one-time, Gumroad, light obfuscation only, buyer self-hosts on GitHub Pages + Supabase.
 
 ---
 
