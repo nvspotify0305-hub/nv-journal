@@ -1,56 +1,112 @@
-## v70 — 2026-03-29
+## Macro data sources fully live — 2026-04-04
 
 ### Done
-- COT live data: CFTC public reporting API (`traders-in-financial-futures-combined` dataset)
-  - EUR Futures and GBP Futures non-commercial net positioning (long - short)
-  - WoW change vs prior week, bullish/bearish flag, report date shown
-  - 24hr cache in `nv_macro_v1` localStorage
-- MyFxBook CORS confirmed working from browser — STATUS:200, no proxy needed
-- Global Claude Code skills installed: feature-dev, code-review, pr-review-toolkit, hookify, example-skills, document-skills, claude-api, github plugin
-- GitHub PAT configured in `~/.claude/settings.json` env for GitHub MCP plugin
+- Diagnosed Rates and Pair Drivers section showing all dashes — root cause: FRED API key (`37f26749...`) had pending email confirmation, never activated
+- Fixed calendar silent bug: FF Calendar API returns `currency` field but code was filtering on `ev.country` — every event silently dropped. Fixed to `ev.currency` in both filter and map
+- Updated Rates section notes to surface Bund value when FRED is down, explicit "no Gilt source" for UK row, "FRED key unconfirmed" for HY/Yield Curve rows
+- Created new FRED API key `040085d7ef6668a63a371dfa37dc107d`, updated Cloudflare env var `FRED_KEY` — all four FRED series now returning live data (US 10Y 4.31%, US 2Y 3.79%, T10Y2Y +0.51%, HY Spread 3.17%)
+- Fixed UK 10Y Gilt source: replaced dead Yahoo Finance tickers with Bank of England IADB CSV API (`IUDMNPY` series) — returning 4.862%. FRED monthly `IRLTLT01GBM156N` added as fallback
+- All six rate sources now live: US 10Y, US 2Y, Yield Curve, HY Spread (FRED), DE Bund (ECB), UK Gilt (BoE)
 
-### Architecture Note
-CFTC API field `report_date_as_yyyy_mm_dd` returns full ISO timestamp — slice to 10 chars for display.
+### Confirmed working sources
+- `/fred` — FRED API, all four series returning live daily data
+- `/ecb-bund` — ECB SDW, DE 10Y Bund 3.048%
+- `/uk-gilt` — BoE IADB CSV, UK 10Y Gilt 4.862% (FRED monthly fallback available)
+- `/ff-calendar` — FF Calendar, now correctly filtering by `currency` field
+- `/quotes`, `/finnhub`, CFTC retail, CFTC COT — all confirmed working from previous session
 
 ### Next Session
-- Test MyFxBook retail sentiment on live site with updated credentials
-- Test COT data on live site (should show EUR/GBP net positioning from latest weekly report)
-- Begin sales version repo structure (Phase 10): separate repo, strip personal data, light obfuscation
+- Review full Macro tab visually with all data now live
+- Consider MacroTab layout rebuild (macro-dashboard.html blueprint) if user wants to proceed
 
 ---
 
-## v69 — 2026-03-28
+## MacroTab rebuild prep — 2026-04-01
 
 ### Done
-- Responsive layout (v68): 768px+ breakpoints, mobile grid collapse, scrollable nav, footer cleanup
-- Interactive dot-grid background: 24px spacing, mouse parallax, two-pass canvas render (perf optimised)
-- Dot-grid on lock screen: DotGrid accepts canvasStyle + isDark props, renders inside LockScreen container
-- Review tab reset bug fixed: useEffect deps changed from weeklyData object to extracted primitive string/number values
-- Days tab: WeeklyTrend SVG chart (8-week bias accuracy), analytics in horizontal equal-height row (BiasEngine + DowChart + WeeklyTrend)
-- Macro tab rebuilt as live MacroTab component:
-  - Prices: frankfurter.app (EURUSD, GBPUSD, USDJPY, USDCHF, AUDUSD + Gold via gold-api.com)
-  - Risk sentiment: auto-derived from Gold + JPY + CHF + AUD daily direction — no manual toggle
-  - Calendar: Forex Factory high-impact (USD/EUR/GBP only), timezone-converted to user TZ, session-grouped
-  - Calendar shows actual announced data vs forecast/previous after event fires (green if beat, red if miss)
-  - Retail sentiment: MyFxBook community outlook via email/password auth + session token caching
-  - COT: hardcoded mockup (EUR +45,231 / GBP -12,456) — CFTC live data pending
-  - DXY bias: manual 3-button toggle (Bullish/Neutral/Bearish), persisted in nv_dxy_bias localStorage
-- MyFxBook credentials (email + password) added to Settings bar — Save button, session cached in nv_mfxbook_session
-- Macro tab cache: nv_macro_v1 in localStorage — prices 30min TTL, calendar 4hr, sentiment 1hr
-- Log Trade tab accidentally deleted during Macro mockup replacement (end marker matched too broadly) — restored from v68 archive and redeployed
-- Deploy rule saved to memory: never build/push mid-session without explicit instruction
+- Built Cloudflare Worker v2 (`docs/worker-nv-macro.js`) with new routes:
+  - `/quotes` — FX via Frankfurter, Gold via gold-api + fawazahmed0, VIX via Yahoo Finance `^VIX`, DXY computed
+  - `/fred` — US 10Y, US 2Y, T10Y2Y, HY spread via FRED API (`env.FRED_KEY`)
+  - `/ecb-bund` — DE 10Y Bund via ECB SDW API
+  - `/uk-gilt` — UK 10Y Gilt via Yahoo Finance (multiple ticker fallbacks — still returning null)
+  - `/finnhub` — SPY, QQQ, TLT, HYG, UUP via Finnhub (`env.FINNHUB_KEY`)
+  - `/ff-calendar` — FF Calendar (unchanged)
+- Built `macro-test.html` standalone data source test page — verifies all sources before MacroTab rebuild
+- Confirmed working: FX, DXY, VIX, ECB Bund, Finnhub ETFs, CFTC retail, CFTC COT, FF Calendar
+- Worker deployed to `nv-macro.nv-trading23.workers.dev`
+- Env vars set in Cloudflare: `FRED_KEY`, `FINNHUB_KEY`
 
 ### Known Issues
-- MyFxBook CORS not yet confirmed — will know on first live test. If blocked, route through Cloudflare Worker.
-- MyFxBook API only supports email/password login — Google OAuth users cannot use it without a separate password account
-- COT section is hardcoded mockup — CFTC live integration pending
-- Forex Factory calendar unavailable in local preview (CORS blocked) — works on live domain only
-
-### Architecture Note
-When replacing large inline tab blocks, verify the end marker is unique to that block only — adjacent tab renders can be accidentally included. Use git archive to recover if needed.
+- FRED yields returning no data — key `37f26749b094875c0ee8b0a710626986` set in Worker but email confirmation from St. Louis Fed still pending
+- UK 10Y Gilt still null — Yahoo Finance tickers `GB10YT=RR`, `GB10Y=R`, `^TNT` all returning no data. Need alternative source.
+- Finnhub free tier: forex pairs not available (paid only). ETFs work fine.
 
 ### Next Session
-- Test MyFxBook retail sentiment on live site — if CORS blocked, add proxy endpoint to Cloudflare Worker
-- COT live data: CFTC API integration (weekly cadence, cached in localStorage)
-- Verify calendar actuals display correctly on a live high-impact news day
-- Begin sales version repo structure planning (separate repo, strip personal data, obfuscate)
+- Wait for FRED email confirmation — check inbox, then verify yields load in macro-test.html
+- Find working source for UK 10Y Gilt (alternative to Yahoo Finance)
+- Design MacroTab UI to match NVJournal dark theme (Bebas Neue, C.xx tokens, Card components)
+- Replace MacroTab in `NVJournal_source.html` → build → v73
+
+---
+
+## MacroTab local rebuild handoff — 2026-04-02
+
+### Scope / guardrails
+- This repo is a test copy only. Do not push, deploy, or touch live without explicit user permission.
+- Working files changed locally: `NVJournal_source.html`, `index.html`
+
+### What was done locally
+- Read session docs and reviewed current Macro architecture vs. test implementations
+- Updated Macro data plumbing in `NVJournal_source.html` to use Worker v2 style sources:
+  - `/quotes`
+  - `/fred`
+  - `/ecb-bund`
+  - `/uk-gilt`
+  - `/finnhub`
+  - existing CFTC retail + COT routes kept
+- Removed dead MyFxBook dependency from Macro tab path
+- Bumped Macro cache key from `nv_macro_v1` to `nv_macro_v2`
+- Adjusted calendar processing to derive local event date/hour using `tzOff` instead of relying on raw UTC day buckets
+- Rebuilt local `index.html` with `node build.js`
+- Script validation passed with embedded script compile check (`script-ok`)
+
+### Review conclusions
+- Real blocker is architectural drift: old in-app MacroTab logic vs. cleaner test-page/Worker v2 contract
+- Current live-style calendar source is still the weakest part of Macro
+- Risk/sentiment logic should be rebuilt around the newer data stack, not the old 4-signal proxy model
+- The tab needs a layout rebuild, not more patchwork inside the old composition
+
+### Design feedback from user
+- First redesign pass was rejected because it still looked too close to the old Macro
+- Second custom dashboard/hero direction was rejected
+- User explicitly prefers the layout direction from `macro-test.html`
+- User then pointed to `macro-dashboard.html` as the strongest layout reference
+- Required constraint: keep NVJournal app theme/design language; do not import a foreign visual system
+
+### Recommended layout direction
+- Use `macro-dashboard.html` as the layout blueprint only
+- Keep NVJournal styling/tokens/fonts/card language
+- Structure:
+  - top verdict bar
+  - compact session/status row
+  - main grid with prices / DXY / risk / calendar / yields
+  - bottom strip for retail / COT / curve / credit quick reads
+
+### API / source decisions for next pass
+- Economic calendar: replace FF dependency with TradingEconomics calendar API
+  - reason: more complete US/EU/GB coverage, includes actual / previous / forecast / importance
+- FX quotes: use Twelve Data for fresher pricing if live-enough quotes are required
+- Keep FRED for US rates/curve/credit
+- Keep ECB for Bund
+- Keep Finnhub for ETF/cross-asset proxies
+- Keep CFTC for retail positioning and COT
+
+### Important unresolved issue
+- Macro layout still needs to be rebuilt properly in `NVJournal_source.html` to match the `macro-dashboard.html` structure
+- User wants the chart smaller in the next session
+
+### Next Session
+- Re-open `macro-dashboard.html` and port its layout structure into `NVJournal_source.html`
+- Keep NVJournal theme intact
+- Make the relevant chart smaller as requested by user
+- If proceeding with source upgrades, replace FF calendar plan with TradingEconomics and evaluate Twelve Data for fresher FX quotes
