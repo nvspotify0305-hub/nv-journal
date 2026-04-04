@@ -5118,7 +5118,7 @@ function MacroTab() {
     var cached = getCache('fred');
     if(cached){ setFred(cached); setErr('fred',null); setLoad('fred',false); return; }
     fetch(WORKER + '/fred').then(function(r){ return r.json(); }).then(function(data){
-      setFred(Array.isArray(data) ? data : null); setCache('fred', Array.isArray(data) ? data : null); setErr('fred',null); setLoad('fred',false);
+      var fredArr = Array.isArray(data) ? data : null; setFred(fredArr); if(fredArr && fredArr.some(function(x){ return x.latest !== null; })) setCache('fred', fredArr); setErr('fred',null); setLoad('fred',false);
     }).catch(function(){ setErr('fred','Unavailable'); setLoad('fred',false); });
   }
   function fetchBund() {
@@ -5132,7 +5132,7 @@ function MacroTab() {
     var cached = getCache('gilt');
     if(cached){ setGilt(cached); setErr('gilt',null); setLoad('gilt',false); return; }
     fetch(WORKER + '/uk-gilt').then(function(r){ return r.json(); }).then(function(data){
-      setGilt(data || null); setCache('gilt', data || null); setErr('gilt',null); setLoad('gilt',false);
+      setGilt(data || null); if(data && data.latest !== null) setCache('gilt', data); setErr('gilt',null); setLoad('gilt',false);
     }).catch(function(){ setErr('gilt','Unavailable'); setLoad('gilt',false); });
   }
   function fetchFinnhub() {
