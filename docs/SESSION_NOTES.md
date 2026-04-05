@@ -1,3 +1,20 @@
+## Macro session labels aligned to trading workflow — 2026-04-05
+
+### Done
+- Updated Macro session ranges to use only `London` and `New York`
+- Removed the separate `London Close` session block from the Macro session model
+- Kept the existing DST-driven session start logic unchanged
+- Applied the session label change in `index.html`, `NVJournal_source.html`, and `tools/replace_macrotab.js`
+
+### Reason
+- User does not use Macro as a liquidity-event model (`London Open` / `New York Open` / `London Close`)
+- User wants Macro session context to reflect the actual trading workflow: London session and New York session, with H4 timing handled separately
+
+### Deploy note
+- Version bumped to `v73` for live deploy
+
+---
+
 ## Macro data sources fully live — 2026-04-04
 
 ### Done

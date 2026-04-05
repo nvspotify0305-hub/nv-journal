@@ -5224,11 +5224,9 @@ function MacroTab() {
   // session state
   var londonStart = _dst ? 6 : 7;
   var nyStart     = _dst ? 10 : 11;
-  var closeStart  = _dst ? 14 : 15;
   var SESSION_RANGES = [
-    {key:'london', label:'London Open',   start:londonStart, end:nyStart},
-    {key:'ny',     label:'New York Open', start:nyStart,     end:closeStart},
-    {key:'close',  label:'London Close',  start:closeStart,  end:18}
+    {key:'london', label:'London',   start:londonStart, end:nyStart},
+    {key:'ny',     label:'New York', start:nyStart,     end:18}
   ];
   var nowHour = new Date(Date.now() + tzOff*3600*1000).getUTCHours();
   var activeSess = SESSION_RANGES.find(function(s){ return nowHour>=s.start && nowHour<s.end; });
@@ -11532,7 +11530,7 @@ function NVJournal() {
       fontFamily: F_MONO,
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v72")), lightboxImg && /*#__PURE__*/React.createElement("div", {
+  }, "NV JOURNAL - v73")), lightboxImg && /*#__PURE__*/React.createElement("div", {
       onClick: function(){setLightboxImg(null);},
       style:{position:"fixed",inset:0,zIndex:600,background:"rgba(0,0,0,0.94)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out"}
     },
