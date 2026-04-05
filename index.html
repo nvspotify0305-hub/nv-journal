@@ -4947,6 +4947,8 @@ function MacroTab() {
 
   var _p = React.useState(null); var prices = _p[0], setPrices = _p[1];
   var _cal = React.useState(null); var calData = _cal[0], setCalData = _cal[1];
+  var _isSunday = (new Date(Date.now()).getUTCDay() === 0);
+  var _calw = React.useState(_isSunday ? 'next' : 'this'); var calWeek = _calw[0], setCalWeek = _calw[1];
   var _sent = React.useState(null); var sentiment = _sent[0], setSentiment = _sent[1];
   var _ld = React.useState({prices:true,calendar:true,sentiment:true,cot:true,fred:true,bund:true,gilt:true,finnhub:true}); var loading = _ld[0], setLoading = _ld[1];
   var _er = React.useState({}); var errors = _er[0], setErrors = _er[1];
@@ -5036,10 +5038,13 @@ function MacroTab() {
       }).catch(function(){ setErr('prices','Failed to load'); setLoad('prices',false); });
   }
 
-  function fetchCalendar() {
-    var cached = getCache('calendar');
+  function fetchCalendar(week) {
+    var wk = week || calWeek;
+    var cacheKey = 'calendar_' + wk;
+    var cached = getCache(cacheKey);
     if(cached){ setCalData(cached); setErr('calendar',null); setLoad('calendar',false); return; }
-    fetch(WORKER + '/ff-calendar')
+    var url = WORKER + '/ff-calendar' + (wk === 'next' ? '?next=1' : '');
+    fetch(url)
       .then(function(r){ return r.json(); })
       .then(function(raw){
         if(!Array.isArray(raw)) throw new Error('bad response');
@@ -5056,7 +5061,7 @@ function MacroTab() {
         var byDate={};
         events.forEach(function(ev){ if(!byDate[ev.date])byDate[ev.date]=[]; byDate[ev.date].push(ev); });
         var data={events:events,byDate:byDate};
-        setCalData(data); setErr('calendar',null); setCache('calendar',data); setLoad('calendar',false);
+        setCalData(data); setErr('calendar',null); setCache(cacheKey,data); setLoad('calendar',false);
       })
       .catch(function(){ setErr('calendar','Unavailable'); setLoad('calendar',false); });
   }
@@ -5144,7 +5149,8 @@ function MacroTab() {
     }).catch(function(){ setErr('finnhub','Unavailable'); setLoad('finnhub',false); });
   }
 
-  React.useEffect(function(){ fetchPrices(); fetchCalendar(); fetchSentiment(); fetchCOT(); fetchFred(); fetchBund(); fetchGilt(); fetchFinnhub(); }, [_tz, _dst]);
+  React.useEffect(function(){ fetchPrices(); fetchCalendar(calWeek); fetchSentiment(); fetchCOT(); fetchFred(); fetchBund(); fetchGilt(); fetchFinnhub(); }, [_tz, _dst]);
+  React.useEffect(function(){ setCalData(null); setLoad('calendar',true); fetchCalendar(calWeek); }, [calWeek]);
 
   function fredVal(id){ return Array.isArray(fred) ? fred.find(function(x){ return x.id===id; }) || null : null; }
   var us10y = fredVal('DGS10');
@@ -5476,7 +5482,23 @@ function MacroTab() {
     /*#__PURE__*/React.createElement(Card, null,
       /*#__PURE__*/React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}},
         /*#__PURE__*/React.createElement("span",{className:"lbl",style:{marginBottom:0}},"Economic Calendar — High Impact"),
-        /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,letterSpacing:".08em",textTransform:"uppercase"}},"USD / EUR / GBP")
+        /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6}},
+          ["this","next"].map(function(wk){
+            var active = calWeek === wk;
+            return /*#__PURE__*/React.createElement("button",{
+              key:wk, type:"button",
+              onClick:function(){ setCalWeek(wk); },
+              style:{
+                fontSize:9, padding:"3px 9px", borderRadius:4, cursor:"pointer",
+                border:"1px solid "+(active?C.accent:C.border),
+                background:active?C.accent+"22":"transparent",
+                color:active?C.accent:C.textDim,
+                fontWeight:active?700:400, letterSpacing:".06em", textTransform:"uppercase"
+              }
+            }, wk==="this"?"This Week":"Next Week");
+          }),
+          /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,letterSpacing:".08em",textTransform:"uppercase",marginLeft:4}},"USD / EUR / GBP")
+        )
       ),
       loading.calendar ? Spinner : errors.calendar ?
         /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textDim}},errors.calendar) :
@@ -6162,7 +6184,8 @@ function NVJournal() {
   }, [tradesFiltered, tradesView]);
   var c5Stats = useMemo(function () {
     var obs = trades.filter(function (t) {
-      return [t.h4_candle, t.h1_candle, t.daily_candle].some(function (v) { return v === "C5+"; });
+      return [t.h4_candle, t.h1_candle, t.daily_candle].some(function (v) { return v === "C5+"; })
+        || t.no_trade_reason === "Non-Executable C5+";
     });
     var byPair = {
       EURUSD: 0,

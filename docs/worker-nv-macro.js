@@ -221,9 +221,44 @@ export default {
     /* ── /ff-calendar ── */
     if (path === '/ff-calendar') {
       try {
-        const r = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
-          headers: { 'User-Agent': 'Mozilla/5.0' }
-        });
+        // 1. TradingView Economic Calendar — includes actuals for past events
+        const nextWeek = url.searchParams.get('next') === '1';
+        const now = new Date();
+        const dow = now.getUTCDay(); // 0=Sun
+        const daysBack = dow === 0 ? 6 : dow - 1;
+        const weekStart = new Date(now.getTime() - daysBack * 86400000 + (nextWeek ? 7 * 86400000 : 0));
+        weekStart.setUTCHours(0, 0, 0, 0);
+        const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 3600000);
+        const tvUrl = `https://economic-calendar.tradingview.com/events?from=${weekStart.toISOString()}&to=${weekEnd.toISOString()}&countries=US,EU,GB`;
+        const tvRes = await fetch(tvUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Origin': 'https://www.tradingview.com',
+            'Referer': 'https://www.tradingview.com/',
+          }
+        }).then(r => r.ok ? r.json() : null).catch(() => null);
+
+        if (tvRes && Array.isArray(tvRes.result) && tvRes.result.length > 0) {
+          const events = tvRes.result
+            .filter(e => e.importance === 3 && ['US', 'EU', 'GB'].includes(e.country))
+            .map(e => ({
+              title:    e.title,
+              date:     e.date,
+              currency: e.currency || (e.country === 'US' ? 'USD' : e.country === 'EU' ? 'EUR' : 'GBP'),
+              impact:   'High',
+              forecast: e.forecast != null ? String(e.forecast) : '',
+              previous: e.previous != null ? String(e.previous) : '',
+              actual:   e.actual   != null ? String(e.actual)   : '',
+            }));
+          return json(events);
+        }
+
+        // 2. Fallback: FF Calendar static JSON (no actuals)
+        const ffUrl = nextWeek
+          ? 'https://nfs.faireconomy.media/ff_calendar_nextweek.json'
+          : 'https://nfs.faireconomy.media/ff_calendar_thisweek.json';
+        const r = await fetch(ffUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
         return json(await r.json());
       } catch (e) {
         return json({ error: 'calendar unavailable' }, 500);
