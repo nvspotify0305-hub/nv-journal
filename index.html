@@ -4960,14 +4960,27 @@ function MacroTab() {
   var _dx = React.useState(function(){ try{ return localStorage.getItem('nv_dxy_bias')||'Neutral'; }catch(e){ return 'Neutral'; } });
   var dxyBias = _dx[0], setDxyBias = _dx[1];
 
-  var CACHE_KEY = 'nv_macro_v2';
+  // ── Gemini verdict state ──
+  var VERDICT_CACHE_KEY = 'nv_macro_verdict_v1';
+  var _gemKey = (function(){ try{ return localStorage.getItem('nv_gemini_key')||''; }catch(e){ return ''; } })();
+  var _vdInit = (function(){ try{ var c=JSON.parse(localStorage.getItem('nv_macro_verdict_v1')||'null'); return c&&c.data?c.data:null; }catch(e){ return null; } })();
+  var _vd = React.useState(_vdInit); var verdict = _vd[0], setVerdict = _vd[1];
+  var _vdl = React.useState(false); var verdictLoading = _vdl[0], setVerdictLoading = _vdl[1];
+  var _vde = React.useState(null); var verdictErr = _vde[0], setVerdictErr = _vde[1];
+
+  var CACHE_KEY = 'nv_macro_v3';
   var WORKER = 'https://nv-macro.nv-trading23.workers.dev';
   function getCache(k) {
     try {
       var c = JSON.parse(localStorage.getItem(CACHE_KEY)||'{}');
       var e = c[k]; if(!e) return null;
       var ttl = {prices:30*60*1000,calendar:4*60*60*1000,sentiment:60*60*1000,cot:24*60*60*1000,fred:4*60*60*1000,bund:4*60*60*1000,gilt:4*60*60*1000,finnhub:30*60*1000}[k]||30*60*1000;
-      return Date.now()-e.ts > ttl ? null : e.data;
+      if(Date.now()-e.ts > ttl) return null;
+      if(k.indexOf('calendar_')===0){
+        var evs = e.data && Array.isArray(e.data.events) ? e.data.events : null;
+        if(!evs || !evs.length) return null;
+      }
+      return e.data;
     } catch(e){ return null; }
   }
   function setCache(k, data) {
@@ -4977,8 +4990,42 @@ function MacroTab() {
       localStorage.setItem(CACHE_KEY, JSON.stringify(c));
     } catch(e){}
   }
+  function getVerdictCache() {
+    try {
+      var c = JSON.parse(localStorage.getItem(VERDICT_CACHE_KEY)||'null');
+      if(!c||!c.data) return null;
+      var dubH = new Date(Date.now()+tzOff*3600*1000).getUTCHours();
+      var ttl = (dubH>=6&&dubH<17) ? 30*60*1000 : 4*60*60*1000;
+      if(Date.now()-c.ts > ttl) return null;
+      return c.data;
+    } catch(e){ return null; }
+  }
+  function setVerdictCache(data) {
+    try{ localStorage.setItem(VERDICT_CACHE_KEY, JSON.stringify({data:data, ts:Date.now()})); }catch(e){}
+  }
   function setLoad(k,v){ setLoading(function(p){ var n=Object.assign({},p); n[k]=v; return n; }); }
   function setErr(k,v){ setErrors(function(p){ var n=Object.assign({},p); n[k]=v; return n; }); }
+  function mapCalendarEvents(raw) {
+    var filtered=(raw||[]).filter(function(ev){
+      var cur = ev.currency || ev.country || '';
+      return (ev.impact==='High'||ev.impact==='Medium')&&['USD','EUR','GBP'].indexOf(cur)!==-1;
+    });
+    return filtered.map(function(ev){
+      var d=new Date(ev.date);
+      var localMs=d.getTime()+tzOff*3600*1000;
+      var ld=new Date(localMs);
+      var hh=String(ld.getUTCHours()).padStart(2,'0'), mm=String(ld.getUTCMinutes()).padStart(2,'0');
+      var dateStr=ld.toISOString().slice(0,10);
+      var dayLabel=ld.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'});
+      return {time:hh+':'+mm,localH:ld.getUTCHours(),date:dateStr,day:dayLabel,cur:(ev.currency||ev.country||''),name:ev.title,forecast:ev.forecast||'—',previous:ev.previous||'—',actual:ev.actual||null,impact:ev.impact||'Medium'};
+    });
+  }
+  function setCalendarData(cacheKey, events) {
+    var byDate={};
+    events.forEach(function(ev){ if(!byDate[ev.date])byDate[ev.date]=[]; byDate[ev.date].push(ev); });
+    var data={events:events,byDate:byDate};
+    setCalData(data); setErr('calendar',null); setCache(cacheKey,data); setLoad('calendar',false);
+  }
 
   function fetchPrices() {
     var cached = getCache('prices');
@@ -5048,20 +5095,9 @@ function MacroTab() {
       .then(function(r){ return r.json(); })
       .then(function(raw){
         if(!Array.isArray(raw)) throw new Error('bad response');
-        var filtered=raw.filter(function(ev){ return ev.impact==='High'&&['USD','EUR','GBP'].indexOf(ev.currency)!==-1; });
-        var events=filtered.map(function(ev){
-          var d=new Date(ev.date);
-          var localMs=d.getTime()+tzOff*3600*1000;
-          var ld=new Date(localMs);
-          var hh=String(ld.getUTCHours()).padStart(2,'0'), mm=String(ld.getUTCMinutes()).padStart(2,'0');
-          var dateStr=ld.toISOString().slice(0,10);
-          var dayLabel=ld.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'});
-          return {time:hh+':'+mm,localH:ld.getUTCHours(),date:dateStr,day:dayLabel,cur:ev.currency,name:ev.title,forecast:ev.forecast||'—',previous:ev.previous||'—',actual:ev.actual||null};
-        });
-        var byDate={};
-        events.forEach(function(ev){ if(!byDate[ev.date])byDate[ev.date]=[]; byDate[ev.date].push(ev); });
-        var data={events:events,byDate:byDate};
-        setCalData(data); setErr('calendar',null); setCache(cacheKey,data); setLoad('calendar',false);
+        var events=mapCalendarEvents(raw);
+        if(!events.length) throw new Error('empty response');
+        setCalendarData(cacheKey, events);
       })
       .catch(function(){ setErr('calendar','Unavailable'); setLoad('calendar',false); });
   }
@@ -5149,8 +5185,55 @@ function MacroTab() {
     }).catch(function(){ setErr('finnhub','Unavailable'); setLoad('finnhub',false); });
   }
 
+  function buildGeminiPayload() {
+    var snap = {
+      eurusd: prices&&prices.eurusd ? prices.eurusd.price : null,
+      gbpusd: prices&&prices.gbpusd ? prices.gbpusd.price : null,
+      dxy: dxySrc&&dxySrc.current!=null ? dxySrc.current : null,
+      vix: vixSrc&&vixSrc.current!=null ? vixSrc.current : null,
+      us10y: us10y&&us10y.latest!=null ? us10y.latest : null,
+      us2y: us2y&&us2y.latest!=null ? us2y.latest : null,
+      yield_curve_10y2y: curve10y2y&&curve10y2y.latest!=null ? curve10y2y.latest : null,
+      hy_spread: hySpread&&hySpread.latest!=null ? hySpread.latest : null,
+      cot_eur_net: cotEUR ? cotEUR.net : null,
+      cot_gbp_net: cotGBP ? cotGBP.net : null,
+      retail_eur_long_pct: sentEUR ? sentEUR.long : null,
+      retail_gbp_long_pct: sentGBP ? sentGBP.long : null,
+      snapshot_time: prices ? prices.ts : null
+    };
+    var todayEvs = calData&&todayStr ? (calData.byDate[todayStr]||[]).filter(function(ev){ return ev.impact==='High'; }).slice(0,5).map(function(ev){ return ev.time+' '+ev.cur+' '+ev.name+(ev.forecast&&ev.forecast!=='—'?' F:'+ev.forecast:''); }) : [];
+    var prompt = 'You are a macro analyst for EUR/USD and GBP/USD FX trading.\nAnalyse the following structured market snapshot and return ONLY a valid JSON object — no text, no markdown, no code blocks.\n\nMarket Snapshot:\n'+JSON.stringify(snap,null,2)+'\n\nToday\'s high-impact calendar events:\n'+(todayEvs.length?todayEvs.join('\n'):'None scheduled')+'\n\nReturn exactly this JSON structure:\n{"regime":"Risk On|Risk Off|Mixed|Transitional","summary":"1-2 sentences max describing macro environment","eurBias":{"direction":"Bullish|Bearish|Mixed","score":50},"gbpBias":{"direction":"Bullish|Bearish|Mixed","score":50},"usdBias":{"direction":"Bullish|Bearish|Mixed","score":50},"drivers":["driver 1","driver 2","driver 3"],"todayFocus":["event 1","event 2","event 3"],"risk":"One sentence invalidation risk","confidence":50,"generatedAt":"'+new Date().toISOString()+'"}\n\nRules: use only provided data, no hallucination, keep text concise, return valid JSON only.';
+    return { contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.3, maxOutputTokens:600} };
+  }
+
+  function fetchVerdict(force) {
+    if(!_gemKey) return;
+    if(!force){ var cv=getVerdictCache(); if(cv){ setVerdict(cv); return; } }
+    if(!prices) return;
+    setVerdictLoading(true); setVerdictErr(null);
+    var url='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+_gemKey;
+    fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(buildGeminiPayload())})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(res){
+      var text = res.candidates&&res.candidates[0]&&res.candidates[0].content&&res.candidates[0].content.parts&&res.candidates[0].content.parts[0] ? res.candidates[0].content.parts[0].text : null;
+      if(!text) throw new Error('Empty response');
+      text = text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
+      var data = JSON.parse(text);
+      if(!data.regime) throw new Error('Invalid structure');
+      data.generatedAt = data.generatedAt || new Date().toISOString();
+      try{ var wk=getWeekKey(new Date().toISOString().slice(0,10)); var usage=JSON.parse(localStorage.getItem('nv_gemini_usage')||'{}'); usage[wk]=(usage[wk]||0)+1; localStorage.setItem('nv_gemini_usage',JSON.stringify(usage)); }catch(e){}
+      setVerdict(data); setVerdictCache(data); setVerdictErr(null); setVerdictLoading(false);
+    })
+    .catch(function(){ setVerdictErr('AI unavailable'); setVerdictLoading(false); });
+  }
+
   React.useEffect(function(){ fetchPrices(); fetchCalendar(calWeek); fetchSentiment(); fetchCOT(); fetchFred(); fetchBund(); fetchGilt(); fetchFinnhub(); }, [_tz, _dst]);
   React.useEffect(function(){ setCalData(null); setLoad('calendar',true); fetchCalendar(calWeek); }, [calWeek]);
+  React.useEffect(function(){
+    if(_gemKey && !loading.prices && !loading.fred && !loading.cot && prices && !verdict && !verdictLoading){
+      fetchVerdict(false);
+    }
+  }, [loading.prices, loading.fred, loading.cot, _gemKey]);
 
   function fredVal(id){ return Array.isArray(fred) ? fred.find(function(x){ return x.id===id; }) || null : null; }
   var us10y = fredVal('DGS10');
@@ -5238,12 +5321,19 @@ function MacroTab() {
   var activeSess = SESSION_RANGES.find(function(s){ return nowHour>=s.start && nowHour<s.end; });
 
   var todayStr = new Date(Date.now() + tzOff*3600*1000).toISOString().slice(0,10);
-  var todayEvs = calData ? (calData.byDate[todayStr]||[]) : [];
-  var sessionEvs = SESSION_RANGES.map(function(s){
-    return { session:s, events:todayEvs.filter(function(ev){ return ev.localH>=s.start&&ev.localH<s.end; }) };
-  });
   var weekDates = calData ? Object.keys(calData.byDate).sort() : [];
+  var focusDate = calWeek === 'next' ? (weekDates[0] || null) : todayStr;
+  var focusDayEvents = calData && focusDate ? (calData.byDate[focusDate]||[]) : [];
+  var focusDayLabel = focusDayEvents.length ? focusDayEvents[0].day : (focusDate || '—');
+  var scheduleTitle = calWeek === 'next' ? 'Upcoming' : 'This Week';
+  var scheduleHint = calWeek === 'next' ? 'Next-week high-impact schedule' : 'High-impact schedule';
+  var emptyWeekText = calWeek === 'next' ? 'No high-impact events scheduled for next week' : 'No high-impact events this week';
+  var sessionEvs = SESSION_RANGES.map(function(s){
+    return { session:s, events:focusDayEvents.filter(function(ev){ return ev.localH>=s.start&&ev.localH<s.end; }) };
+  });
   var curCol = function(cur){ return cur==='EUR'?C.accent:cur==='GBP'?C.green:C.yellow; };
+  var impactStars = function(impact){ return impact==='High'?'\u2605\u2605\u2605':impact==='Medium'?'\u2605\u2605':'\u2605'; };
+  var nowMinutes = new Date(Date.now()+tzOff*3600*1000).getUTCHours()*60+new Date(Date.now()+tzOff*3600*1000).getUTCMinutes();
   var Spinner = /*#__PURE__*/React.createElement("span",{style:{color:C.textDim,fontSize:11}},"Loading…");
 
   // verdict bias bar helper (called as function, not component)
@@ -5265,15 +5355,50 @@ function MacroTab() {
     /*#__PURE__*/React.createElement(Sect, null, "Macro — Market Context"),
 
     /* VERDICT BAR */
-    /*#__PURE__*/React.createElement("div",{style:{background:C.surface,border:"1px solid "+C.border,borderRadius:12,overflow:"hidden",display:"grid",gridTemplateColumns:bp.isMobile?"1fr 1fr":"1.25fr 1fr 1fr 1fr 170px"}},
-      /*#__PURE__*/React.createElement("div",{style:{display:"flex",gap:12,alignItems:"center",padding:"14px 16px",borderRight:"1px solid "+C.border,gridColumn:bp.isMobile?"1 / -1":"auto",borderBottom:bp.isMobile?"1px solid "+C.border:"none"}},
-        /*#__PURE__*/React.createElement("div",{style:{width:40,height:40,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:700,flexShrink:0,background:riskRegime==='Risk Off'?'rgba(240,100,100,0.14)':riskRegime==='Risk On'?'rgba(61,214,140,0.14)':'rgba(251,191,36,0.14)',color:verdictCol}},
-          riskRegime==='Risk Off'?'!':riskRegime==='Risk On'?'↗':'≈'
+    /*#__PURE__*/React.createElement("div",{style:{background:C.surface,border:"1px solid "+C.border,borderRadius:12,overflow:"hidden",display:"grid",gridTemplateColumns:bp.isMobile?"1fr 1fr":"1.6fr 1fr 1fr 1fr 170px"}},
+      /*#__PURE__*/React.createElement("div",{style:{display:"flex",flexDirection:"column",padding:"14px 16px",borderRight:"1px solid "+C.border,gridColumn:bp.isMobile?"1 / -1":"auto",borderBottom:bp.isMobile?"1px solid "+C.border:"none"}},
+        /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:9}},
+          /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6}},
+            /*#__PURE__*/React.createElement("span",{style:{fontSize:9,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim,fontWeight:700}},"Today's Fundamental Verdict"),
+            _gemKey&&/*#__PURE__*/React.createElement("span",{style:{fontSize:7,padding:"1px 5px",borderRadius:3,background:C.accent+"22",color:C.accent,fontWeight:700,letterSpacing:".06em"}},"AI")
+          ),
+          _gemKey&&/*#__PURE__*/React.createElement("button",{type:"button",onClick:function(){ fetchVerdict(true); },title:"Refresh AI brief",style:{background:"transparent",border:"none",cursor:verdictLoading?"default":"pointer",color:verdictLoading?C.textDim+"55":C.textDim,fontSize:13,padding:"0",lineHeight:1}},"↻")
         ),
-        /*#__PURE__*/React.createElement("div",null,
-          /*#__PURE__*/React.createElement("div",{style:{fontSize:9,letterSpacing:".15em",textTransform:"uppercase",color:C.textDim,marginBottom:3,fontWeight:700}},"Today's Verdict"),
-          /*#__PURE__*/React.createElement("div",{style:{fontSize:bp.isMobile?14:20,fontWeight:700,color:verdictCol,lineHeight:1.1}},verdictTitle)
-        )
+        !_gemKey ?
+          /*#__PURE__*/React.createElement(React.Fragment,null,
+            /*#__PURE__*/React.createElement("div",{style:{fontSize:bp.isMobile?14:19,fontWeight:700,color:verdictCol,lineHeight:1.1,marginBottom:4}},verdictTitle),
+            /*#__PURE__*/React.createElement("div",{style:{fontSize:9,color:C.textDim,marginTop:4}},"Add Gemini key in Settings to enable AI brief")
+          ) :
+        verdictLoading&&!verdict ?
+          /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:C.textDim}},"Generating macro brief\u2026") :
+        verdict ?
+          /*#__PURE__*/React.createElement(React.Fragment,null,
+            /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:7,flexWrap:"wrap"}},
+              /*#__PURE__*/React.createElement("span",{style:{fontSize:11,fontWeight:700,padding:"3px 9px",borderRadius:5,background:(verdict.regime==='Risk Off'?C.red:verdict.regime==='Risk On'?C.green:C.yellow)+"22",color:verdict.regime==='Risk Off'?C.red:verdict.regime==='Risk On'?C.green:C.yellow}},verdict.regime),
+              verdict.confidence!=null&&/*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace"}},verdict.confidence+"%")
+            ),
+            /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:C.textMid,lineHeight:1.5,marginBottom:7}},verdict.summary),
+            Array.isArray(verdict.drivers)&&verdict.drivers.length>0&&
+              /*#__PURE__*/React.createElement("div",{style:{marginBottom:6}},
+                verdict.drivers.slice(0,3).map(function(d,i){
+                  return /*#__PURE__*/React.createElement("div",{key:i,style:{fontSize:9,color:C.textDim,lineHeight:1.6}},
+                    /*#__PURE__*/React.createElement("span",{style:{color:C.accent,marginRight:4}},"\u25B8"),d
+                  );
+                })
+              ),
+            verdict.risk&&/*#__PURE__*/React.createElement("div",{style:{fontSize:9,color:C.textDim,borderTop:"1px solid "+C.border+"44",paddingTop:6,marginTop:2}},
+              /*#__PURE__*/React.createElement("span",{style:{color:C.yellow,marginRight:4,opacity:.8}},"\u26A0"),verdict.risk
+            ),
+            /*#__PURE__*/React.createElement("div",{style:{fontSize:8,color:C.textDim,marginTop:7,fontFamily:"'Courier New',monospace",opacity:.65}},
+              "AI: "+(verdict.generatedAt?new Date(verdict.generatedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'UTC'}):"—")+(prices?" · Mkt: "+prices.ts:"")
+            )
+          ) :
+        verdictErr ?
+          /*#__PURE__*/React.createElement(React.Fragment,null,
+            /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:C.red,marginBottom:5}},verdictErr),
+            /*#__PURE__*/React.createElement("div",{style:{fontSize:bp.isMobile?13:17,fontWeight:700,color:verdictCol,lineHeight:1.1}},verdictTitle)
+          ) :
+        /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:C.textDim}},"Waiting for market data\u2026")
       ),
       biasBar("EUR/USD Bias", eurScore, eurText, false, false),
       biasBar("GBP/USD Bias", gbpScore, gbpText, false, false),
@@ -5293,8 +5418,13 @@ function MacroTab() {
         return /*#__PURE__*/React.createElement("span",{key:s.key,style:{padding:"5px 10px",borderRadius:999,background:isAct?"rgba(105,168,255,0.14)":C.surfaceHigh,fontSize:11,color:isAct?C.accent:C.textMid,fontWeight:isAct?700:400}},s.label);
       }),
       /*#__PURE__*/React.createElement("div",{style:{flex:1}}),
-      /*#__PURE__*/React.createElement("span",{style:{fontSize:11,color:C.textDim}},
-        (prices?"FX "+prices.ts+" · ":"")+"Rates daily · CFTC weekly"
+      /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace"}},
+        [
+          prices?"Mkt: "+prices.ts:null,
+          "Rates: daily",
+          "COT: weekly",
+          verdict?"AI: "+new Date(verdict.generatedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'UTC'}):null
+        ].filter(Boolean).join(" · ")
       )
     ),
 
@@ -5481,7 +5611,7 @@ function MacroTab() {
     /* CALENDAR */
     /*#__PURE__*/React.createElement(Card, null,
       /*#__PURE__*/React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}},
-        /*#__PURE__*/React.createElement("span",{className:"lbl",style:{marginBottom:0}},"Economic Calendar — High Impact"),
+        /*#__PURE__*/React.createElement("span",{className:"lbl",style:{marginBottom:0}},"Economic Calendar"),
         /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6}},
           ["this","next"].map(function(wk){
             var active = calWeek === wk;
@@ -5500,14 +5630,27 @@ function MacroTab() {
           /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,letterSpacing:".08em",textTransform:"uppercase",marginLeft:4}},"USD / EUR / GBP")
         )
       ),
+      calWeek==='this'&&focusDayEvents.filter(function(ev){ return ev.impact==='High'; }).length>0&&
+        /*#__PURE__*/React.createElement("div",{style:{background:C.green+"14",border:"1px solid "+C.green+"33",borderRadius:8,padding:"10px 14px",marginBottom:12}},
+          /*#__PURE__*/React.createElement("div",{style:{fontSize:9,letterSpacing:".12em",textTransform:"uppercase",color:C.green,fontWeight:700,marginBottom:8}},"Today\u2019s Focus"),
+          focusDayEvents.filter(function(ev){ return ev.impact==='High'; }).slice(0,3).map(function(ev,i){
+            return /*#__PURE__*/React.createElement("div",{key:i,style:{display:"flex",alignItems:"center",gap:10,padding:"5px 0",borderTop:i>0?"1px solid "+C.border+"33":"none"}},
+              /*#__PURE__*/React.createElement("span",{style:{fontFamily:"'Courier New',monospace",fontSize:10,color:C.textDim,minWidth:38}},ev.time),
+              /*#__PURE__*/React.createElement("span",{style:{fontSize:8,background:curCol(ev.cur),color:isDark?"#000":"#fff",padding:"2px 5px",borderRadius:2,fontWeight:700,minWidth:28,textAlign:"center"}},ev.cur),
+              /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.text,flex:1}},ev.name),
+              ev.forecast&&ev.forecast!=='—'&&/*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace",whiteSpace:"nowrap"}},"F: "+ev.forecast)
+            );
+          })
+        ),
       loading.calendar ? Spinner : errors.calendar ?
         /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textDim}},errors.calendar) :
         /*#__PURE__*/React.createElement("div",{style:{display:"grid",gridTemplateColumns:bp.isMobile?"1fr":"minmax(300px,0.9fr) minmax(400px,1.35fr)",gap:0,border:"1px solid "+C.border,borderRadius:10,overflow:"hidden",background:C.surfaceHigh}},
           /*#__PURE__*/React.createElement("div",{style:{padding:"14px 16px",borderRight:bp.isMobile?"none":"1px solid "+C.border,borderBottom:bp.isMobile?"1px solid "+C.border:"none"}},
             /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:12}},
-              /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textMid,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase"}},"Today"),
-              /*#__PURE__*/React.createElement("span",{style:{fontSize:8,background:C.accent,color:isDark?"#000":"#fff",padding:"2px 6px",borderRadius:3,fontWeight:700}},todayStr)
+              /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textMid,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase"}},calWeek === 'next' ? 'Upcoming' : 'Today'),
+              /*#__PURE__*/React.createElement("span",{style:{fontSize:8,background:C.accent,color:isDark?"#000":"#fff",padding:"2px 6px",borderRadius:3,fontWeight:700}},focusDate || todayStr)
             ),
+            calWeek === 'next' && /*#__PURE__*/React.createElement("div",{style:{fontSize:9,color:C.textDim,marginBottom:12}},focusDate ? "Previewing " + focusDayLabel + " session split" : "Next-week session preview unavailable"),
             sessionEvs.map(function(se){
               return /*#__PURE__*/React.createElement("div",{key:se.session.key,style:{marginBottom:14}},
                 /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:8,paddingBottom:6,borderBottom:"1px solid "+C.border}},
@@ -5515,18 +5658,20 @@ function MacroTab() {
                   /*#__PURE__*/React.createElement("span",{style:{fontSize:8,color:se.events.length?C.red:C.textDim}},se.events.length?se.events.length+" event"+(se.events.length>1?"s":""):"Quiet")
                 ),
                 se.events.length===0 ?
-                  /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:C.textDim,padding:"4px 0 2px"}},"No high-impact events") :
+                  /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:C.textDim,padding:"4px 0 2px"}},"No events") :
                   se.events.map(function(ev){
                     var hasActual=ev.actual&&ev.actual!=='—', aN=parseFloat((ev.actual||'').replace(/[^0-9.-]/g,'')), fN=parseFloat((ev.forecast||'').replace(/[^0-9.-]/g,''));
                     var beat=hasActual&&!isNaN(aN)&&!isNaN(fN)?aN>=fN:null, aC=beat===null?C.green:beat?C.green:C.red;
-                    return /*#__PURE__*/React.createElement("div",{key:ev.time+ev.name,style:{padding:"9px 0",borderBottom:"1px solid "+(isDark?C.border+"44":C.border)}},
-                      /*#__PURE__*/React.createElement("div",{style:{display:"grid",gridTemplateColumns:"52px 40px 1fr auto",gap:8,alignItems:"start",marginBottom:6}},
+                    var isMed=ev.impact==='Medium';
+                    return /*#__PURE__*/React.createElement("div",{key:ev.time+ev.name,style:{padding:"8px 0",borderBottom:"1px solid "+(isDark?C.border+"44":C.border),opacity:isMed?0.75:1}},
+                      /*#__PURE__*/React.createElement("div",{style:{display:"grid",gridTemplateColumns:"46px 34px 22px 1fr auto",gap:7,alignItems:"start",marginBottom:5}},
                         /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace"}},ev.time),
-                        /*#__PURE__*/React.createElement("span",{style:{fontSize:8,background:curCol(ev.cur),color:isDark?"#000":"#fff",padding:"2px 4px",borderRadius:2,fontWeight:700,textAlign:"center"}},ev.cur),
+                        /*#__PURE__*/React.createElement("span",{style:{fontSize:8,background:curCol(ev.cur),color:isDark?"#000":"#fff",padding:"2px 3px",borderRadius:2,fontWeight:700,textAlign:"center"}},ev.cur),
+                        /*#__PURE__*/React.createElement("span",{style:{fontSize:8,color:isMed?C.textDim:C.yellow,letterSpacing:"-1px"}},impactStars(ev.impact)),
                         /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.text,lineHeight:1.35,paddingTop:1}},ev.name),
                         hasActual&&/*#__PURE__*/React.createElement("span",{style:{fontSize:8,padding:"2px 6px",borderRadius:3,background:aC+"22",color:aC,fontWeight:700,whiteSpace:"nowrap"}},"Released")
                       ),
-                      /*#__PURE__*/React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:8,paddingLeft:60}},
+                      /*#__PURE__*/React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:8,paddingLeft:62}},
                         hasActual&&/*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:aC,fontFamily:"'Courier New',monospace",fontWeight:700}},"A: "+ev.actual),
                         /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textMid,fontFamily:"'Courier New',monospace"}},"F: "+(ev.forecast||"—")),
                         /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace"}},"P: "+(ev.previous||"—"))
@@ -5538,36 +5683,52 @@ function MacroTab() {
           ),
           /*#__PURE__*/React.createElement("div",{style:{padding:"14px 16px"}},
             /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:12}},
-              /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textMid,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase"}},"This Week"),
-              /*#__PURE__*/React.createElement("span",{style:{fontSize:8,color:C.textDim}},"High-impact schedule")
+              /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.textMid,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase"}},scheduleTitle),
+              /*#__PURE__*/React.createElement("span",{style:{fontSize:8,color:C.textDim}},scheduleHint)
             ),
             weekDates.length===0 ?
-              /*#__PURE__*/React.createElement("div",{style:{color:C.textDim,fontSize:10}},"No high-impact events this week") :
+              /*#__PURE__*/React.createElement("div",{style:{color:C.textDim,fontSize:10}},emptyWeekText) :
               weekDates.map(function(date){
-                var evs=calData.byDate[date], isToday=date===todayStr;
+                var evs=calData.byDate[date], isToday=calWeek==='this'&&date===todayStr;
+                var timeMarkerInserted=false;
+                var rows=[];
+                evs.forEach(function(ev,i){
+                  var evMins=parseInt(ev.time.slice(0,2),10)*60+parseInt(ev.time.slice(3,5),10);
+                  if(isToday&&!timeMarkerInserted&&evMins>nowMinutes){
+                    timeMarkerInserted=true;
+                    rows.push(/*#__PURE__*/React.createElement("div",{key:"now",style:{display:"flex",alignItems:"center",gap:8,margin:"4px 0"}},
+                      /*#__PURE__*/React.createElement("div",{style:{height:1,flex:1,background:C.accent+"88"}}),
+                      /*#__PURE__*/React.createElement("span",{style:{fontSize:8,color:C.accent,fontFamily:"'Courier New',monospace",whiteSpace:"nowrap"}},
+                        String(Math.floor(nowMinutes/60)).padStart(2,'0')+':'+String(nowMinutes%60).padStart(2,'0')+" NOW"
+                      ),
+                      /*#__PURE__*/React.createElement("div",{style:{height:1,flex:1,background:C.accent+"88"}})
+                    ));
+                  }
+                  var hasActual=ev.actual&&ev.actual!=='—', aN=parseFloat((ev.actual||'').replace(/[^0-9.-]/g,'')), fN=parseFloat((ev.forecast||'').replace(/[^0-9.-]/g,''));
+                  var beat=hasActual&&!isNaN(aN)&&!isNaN(fN)?aN>=fN:null, aC=beat===null?C.green:beat?C.green:C.red;
+                  var isMed=ev.impact==='Medium';
+                  rows.push(/*#__PURE__*/React.createElement("div",{key:ev.time+ev.name,style:{display:"grid",gridTemplateColumns:bp.isMobile?"46px 34px 1fr":"46px 34px 28px minmax(140px,1fr) auto",gap:7,alignItems:"start",padding:"5px 0",opacity:isMed?0.75:1}},
+                    /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace"}},ev.time),
+                    /*#__PURE__*/React.createElement("span",{style:{fontSize:8,background:curCol(ev.cur),color:isDark?"#000":"#fff",padding:"2px 3px",borderRadius:2,fontWeight:700,textAlign:"center"}},ev.cur),
+                    /*#__PURE__*/React.createElement("span",{style:{fontSize:8,color:isMed?C.textDim:C.yellow,letterSpacing:"-1px"}},impactStars(ev.impact)),
+                    /*#__PURE__*/React.createElement("div",null,
+                      /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:hasActual?C.textMid:C.text,lineHeight:1.35}},ev.name),
+                      /*#__PURE__*/React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:8,marginTop:3}},
+                        hasActual&&/*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:aC,fontFamily:"'Courier New',monospace",fontWeight:700}},"A: "+ev.actual),
+                        /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textMid,fontFamily:"'Courier New',monospace"}},"F: "+(ev.forecast||"—")),
+                        /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace"}},"P: "+(ev.previous||"—"))
+                      )
+                    ),
+                    !bp.isMobile&&hasActual?/*#__PURE__*/React.createElement("span",{style:{fontSize:8,padding:"2px 6px",borderRadius:3,background:aC+"22",color:aC,fontWeight:700,whiteSpace:"nowrap",marginTop:1}},"Released"):
+                    !bp.isMobile?/*#__PURE__*/React.createElement("span",{style:{fontSize:8,color:isMed?C.textDim+"88":C.textDim,letterSpacing:".06em",textTransform:"uppercase",marginTop:2}},isMed?"Medium":"Upcoming"):null
+                  ));
+                });
                 return /*#__PURE__*/React.createElement("div",{key:date,style:{marginBottom:14,paddingBottom:12,borderBottom:"1px solid "+(isDark?C.border+"44":C.border)}},
                   /*#__PURE__*/React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:8}},
                     /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:isToday?C.accent:C.textDim,fontWeight:isToday?700:500}},evs[0].day),
                     isToday&&/*#__PURE__*/React.createElement("span",{style:{fontSize:8,background:C.accent,color:isDark?"#000":"#fff",padding:"2px 6px",borderRadius:3,fontWeight:700}},"TODAY")
                   ),
-                  evs.map(function(ev){
-                    var hasActual=ev.actual&&ev.actual!=='—', aN=parseFloat((ev.actual||'').replace(/[^0-9.-]/g,'')), fN=parseFloat((ev.forecast||'').replace(/[^0-9.-]/g,''));
-                    var beat=hasActual&&!isNaN(aN)&&!isNaN(fN)?aN>=fN:null, aC=beat===null?C.green:beat?C.green:C.red;
-                    return /*#__PURE__*/React.createElement("div",{key:ev.time+ev.name,style:{display:"grid",gridTemplateColumns:bp.isMobile?"52px 40px 1fr":"52px 40px minmax(160px,1fr) auto",gap:8,alignItems:"start",padding:"6px 0"}},
-                      /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace"}},ev.time),
-                      /*#__PURE__*/React.createElement("span",{style:{fontSize:8,background:curCol(ev.cur),color:isDark?"#000":"#fff",padding:"2px 4px",borderRadius:2,fontWeight:700,textAlign:"center"}},ev.cur),
-                      /*#__PURE__*/React.createElement("div",null,
-                        /*#__PURE__*/React.createElement("div",{style:{fontSize:10,color:hasActual?C.textMid:C.text,lineHeight:1.35}},ev.name),
-                        /*#__PURE__*/React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:8,marginTop:3}},
-                          hasActual&&/*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:aC,fontFamily:"'Courier New',monospace",fontWeight:700}},"A: "+ev.actual),
-                          /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textMid,fontFamily:"'Courier New',monospace"}},"F: "+(ev.forecast||"—")),
-                          /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace"}},"P: "+(ev.previous||"—"))
-                        )
-                      ),
-                      !bp.isMobile&&hasActual?/*#__PURE__*/React.createElement("span",{style:{fontSize:8,padding:"2px 6px",borderRadius:3,background:aC+"22",color:aC,fontWeight:700,whiteSpace:"nowrap",marginTop:1}},"Released"):
-                      !bp.isMobile?/*#__PURE__*/React.createElement("span",{style:{fontSize:8,color:C.textDim,letterSpacing:".08em",textTransform:"uppercase",marginTop:2}},"Upcoming"):null
-                    );
-                  })
+                  rows
                 );
               })
           )
@@ -5990,6 +6151,20 @@ function NVJournal() {
     try{ localStorage.setItem('nv_mfxbook_email', mfxEmail); localStorage.setItem('nv_mfxbook_pass', mfxPass); localStorage.removeItem('nv_mfxbook_session'); }catch(e){}
     showToast("MyFxBook credentials saved");
     try{ window.dispatchEvent(new CustomEvent('mfxbook-creds-saved')); }catch(e){}
+  }
+  // ── Gemini AI key state ──
+  var _useGemKey = useState(function(){ try{ return localStorage.getItem('nv_gemini_key')||''; }catch(e){ return ''; } }), _useGemKey2 = _slicedToArray(_useGemKey, 2), geminiKeyStored = _useGemKey2[0], setGeminiKeyStored = _useGemKey2[1];
+  var _useGemIn = useState(''), _useGemIn2 = _slicedToArray(_useGemIn, 2), geminiKeyInput = _useGemIn2[0], setGeminiKeyInput = _useGemIn2[1];
+  function saveGeminiKey() {
+    var k = geminiKeyInput.trim();
+    try{ localStorage.setItem('nv_gemini_key', k); }catch(e){}
+    setGeminiKeyStored(k); setGeminiKeyInput('');
+    showToast('Gemini key saved');
+  }
+  function removeGeminiKey() {
+    try{ localStorage.removeItem('nv_gemini_key'); }catch(e){}
+    setGeminiKeyStored(''); setGeminiKeyInput('');
+    showToast('Gemini key removed');
   }
   function submitPwChange() {
     if (nvHash(pwCur) !== nvGetHash()) { setPwErr("Current password incorrect"); return; }
@@ -9209,6 +9384,18 @@ function NVJournal() {
     /*#__PURE__*/React.createElement("input", { type: "email", placeholder: "Email", value: mfxEmail, onChange: function(e){ setMfxEmail(e.target.value); }, style: { width: 130, padding: "4px 8px", background: C.inputBg, border: "1px solid " + C.border, borderRadius: 5, color: C.text, fontSize: 11, fontFamily: F_MONO, outline: "none" } }),
     /*#__PURE__*/React.createElement("input", { type: "password", placeholder: "Password", value: mfxPass, onChange: function(e){ setMfxPass(e.target.value); }, onKeyDown: function(e){ if(e.key==="Enter") saveMfxCreds(); }, style: { width: 100, padding: "4px 8px", background: C.inputBg, border: "1px solid " + C.border, borderRadius: 5, color: C.text, fontSize: 11, fontFamily: F_MONO, outline: "none" } }),
     /*#__PURE__*/React.createElement("button", { type: "button", onClick: saveMfxCreds, style: { padding: "4px 10px", background: C.green + "22", border: "1px solid " + C.green, borderRadius: 5, color: C.green, fontSize: 11, fontFamily: F_MONO, cursor: "pointer" } }, "Save")
+  ),
+  /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+    /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: C.textMid } }, "Gemini AI"),
+    geminiKeyStored ?
+      /*#__PURE__*/React.createElement(React.Fragment, null,
+        /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, color: C.green, fontFamily: F_MONO } }, "Key set \u2713"),
+        /*#__PURE__*/React.createElement("button", { type: "button", onClick: removeGeminiKey, style: { padding: "4px 8px", background: "transparent", border: "1px solid " + C.border, borderRadius: 5, color: C.textDim, fontSize: 10, fontFamily: F_MONO, cursor: "pointer" } }, "Remove")
+      ) :
+      /*#__PURE__*/React.createElement(React.Fragment, null,
+        /*#__PURE__*/React.createElement("input", { type: "password", placeholder: "AIza\u2026", value: geminiKeyInput, onChange: function(e){ setGeminiKeyInput(e.target.value); }, onKeyDown: function(e){ if(e.key==="Enter") saveGeminiKey(); }, style: { width: 180, padding: "4px 8px", background: C.inputBg, border: "1px solid " + C.border, borderRadius: 5, color: C.text, fontSize: 11, fontFamily: F_MONO, outline: "none" } }),
+        /*#__PURE__*/React.createElement("button", { type: "button", onClick: saveGeminiKey, style: { padding: "4px 10px", background: C.green + "22", border: "1px solid " + C.green, borderRadius: 5, color: C.green, fontSize: 11, fontFamily: F_MONO, cursor: "pointer" } }, "Save")
+      )
   ), /*#__PURE__*/React.createElement("div", {
     style: {
       marginLeft: "auto",
@@ -11587,7 +11774,7 @@ function NVJournal() {
       fontFamily: F_MONO,
       letterSpacing: ".08em"
     }
-  }, "NV JOURNAL - v73")), lightboxImg && /*#__PURE__*/React.createElement("div", {
+  }, "NV JOURNAL - v74")), lightboxImg && /*#__PURE__*/React.createElement("div", {
       onClick: function(){setLightboxImg(null);},
       style:{position:"fixed",inset:0,zIndex:600,background:"rgba(0,0,0,0.94)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out"}
     },
