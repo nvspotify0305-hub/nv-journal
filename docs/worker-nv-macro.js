@@ -232,7 +232,7 @@ export default {
         const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 3600000);
 
         // Check Cloudflare Cache first (avoids hammering upstream sources)
-        const cacheKey = new Request(`https://cache.nv-macro/ff-calendar-v2?week=${nextWeek ? 'next' : 'this'}`);
+        const cacheKey = new Request(`https://cache.nv-macro/ff-calendar-v3?week=${nextWeek ? 'next' : 'this'}`);
         const cachedResp = await caches.default.match(cacheKey);
         if (cachedResp && !dbg) return cachedResp;
 
@@ -255,11 +255,11 @@ export default {
             // Inspect first event to detect importance format
             const sample = tvData.result[0];
             info.tvSample = { importance: sample?.importance, country: sample?.country, currency: sample?.currency };
-            // TradingView uses importance: 1=high, 2=medium, 3=low (inverted scale)
+            // TradingView currently uses importance: 1=high, 0=medium, -1=low.
             tvEvents = tvData.result.filter(e => {
               const imp = e.importance;
               const impText = String(e.importance).toLowerCase();
-              const isImportant = imp === 1 || imp === '1' || imp === 2 || imp === '2' || impText === 'high' || impText === 'medium';
+              const isImportant = imp === 1 || imp === '1' || imp === 0 || imp === '0' || impText === 'high' || impText === 'medium';
               const country = String(e.country || '').toUpperCase();
               const currency = String(e.currency || '').toUpperCase();
               return isImportant && (['US', 'EU', 'GB', 'USD', 'EUR', 'GBP'].includes(country) || ['USD', 'EUR', 'GBP'].includes(currency));
@@ -267,7 +267,7 @@ export default {
               title:    e.title,
               date:     e.date,
               currency: e.currency || (e.country === 'US' ? 'USD' : e.country === 'EU' ? 'EUR' : 'GBP'),
-              impact:   (e.importance === 2 || e.importance === '2' || String(e.importance).toLowerCase() === 'medium') ? 'Medium' : 'High',
+              impact:   (e.importance === 0 || e.importance === '0' || String(e.importance).toLowerCase() === 'medium') ? 'Medium' : 'High',
               forecast: e.forecast != null ? String(e.forecast) : '',
               previous: e.previous != null ? String(e.previous) : '',
               actual:   e.actual   != null ? String(e.actual)   : '',
