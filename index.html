@@ -5206,25 +5206,46 @@ function MacroTab() {
     return { contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.3, maxOutputTokens:600} };
   }
 
+  function callGeminiModel(modelId, payload) {
+    var url='https://generativelanguage.googleapis.com/v1beta/models/'+modelId+':generateContent?key='+_gemKey;
+    return fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
+      .then(function(r){
+        if(!r.ok){ var status=r.status; var err=new Error('HTTP '+status); err.status=status; throw err; }
+        return r.json();
+      })
+      .then(function(res){
+        var text=res.candidates&&res.candidates[0]&&res.candidates[0].content&&res.candidates[0].content.parts&&res.candidates[0].content.parts[0]?res.candidates[0].content.parts[0].text:null;
+        if(!text) throw new Error('Empty response');
+        text=text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
+        var data=JSON.parse(text);
+        if(!data.regime) throw new Error('Invalid structure');
+        return data;
+      });
+  }
+  function retryGemini(modelId, payload, attemptsLeft) {
+    return callGeminiModel(modelId, payload).catch(function(err){
+      var retryable=err.status===429||err.status===503;
+      if(retryable&&attemptsLeft>0){
+        return new Promise(function(res){ setTimeout(res, 10000); })
+          .then(function(){ return retryGemini(modelId, payload, attemptsLeft-1); });
+      }
+      throw err;
+    });
+  }
   function fetchVerdict(force) {
     if(!_gemKey) return;
     if(!force){ var cv=getVerdictCache(); if(cv){ setVerdict(cv); return; } }
     if(!prices) return;
     setVerdictLoading(true); setVerdictErr(null);
-    var url='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+_gemKey;
-    fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(buildGeminiPayload())})
-    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-    .then(function(res){
-      var text = res.candidates&&res.candidates[0]&&res.candidates[0].content&&res.candidates[0].content.parts&&res.candidates[0].content.parts[0] ? res.candidates[0].content.parts[0].text : null;
-      if(!text) throw new Error('Empty response');
-      text = text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
-      var data = JSON.parse(text);
-      if(!data.regime) throw new Error('Invalid structure');
-      data.generatedAt = data.generatedAt || new Date().toISOString();
-      try{ var wk=getWeekKey(new Date().toISOString().slice(0,10)); var usage=JSON.parse(localStorage.getItem('nv_gemini_usage')||'{}'); usage[wk]=(usage[wk]||0)+1; localStorage.setItem('nv_gemini_usage',JSON.stringify(usage)); }catch(e){}
-      setVerdict(data); setVerdictCache(data); setVerdictErr(null); setVerdictLoading(false);
-    })
-    .catch(function(){ setVerdictErr('AI unavailable'); setVerdictLoading(false); });
+    var payload=buildGeminiPayload();
+    retryGemini('gemini-2.5-flash', payload, 3)
+      .catch(function(){ return retryGemini('gemini-2.5-flash-lite', payload, 1); })
+      .then(function(data){
+        data.generatedAt=data.generatedAt||new Date().toISOString();
+        try{ var wk=getWeekKey(new Date().toISOString().slice(0,10)); var usage=JSON.parse(localStorage.getItem('nv_gemini_usage')||'{}'); usage[wk]=(usage[wk]||0)+1; localStorage.setItem('nv_gemini_usage',JSON.stringify(usage)); }catch(e){}
+        setVerdict(data); setVerdictCache(data); setVerdictErr(null); setVerdictLoading(false);
+      })
+      .catch(function(){ setVerdictErr('AI unavailable'); setVerdictLoading(false); });
   }
 
   React.useEffect(function(){ fetchPrices(); fetchCalendar(calWeek); fetchSentiment(); fetchCOT(); fetchFred(); fetchBund(); fetchGilt(); fetchFinnhub(); }, [_tz, _dst]);
