@@ -4968,7 +4968,7 @@ function MacroTab() {
   var _vdl = React.useState(false); var verdictLoading = _vdl[0], setVerdictLoading = _vdl[1];
   var _vde = React.useState(null); var verdictErr = _vde[0], setVerdictErr = _vde[1];
 
-  var CACHE_KEY = 'nv_macro_v3';
+  var CACHE_KEY = 'nv_macro_v4';
   var WORKER = 'https://nv-macro.nv-trading23.workers.dev';
   function getCache(k) {
     try {
@@ -5005,19 +5005,30 @@ function MacroTab() {
   }
   function setLoad(k,v){ setLoading(function(p){ var n=Object.assign({},p); n[k]=v; return n; }); }
   function setErr(k,v){ setErrors(function(p){ var n=Object.assign({},p); n[k]=v; return n; }); }
+  function macroTimeZone() {
+    return _tz === 'New York' ? 'America/New_York' : _tz === 'Sydney' ? 'Australia/Sydney' : 'Europe/Dublin';
+  }
+  function calendarLocalParts(date) {
+    var tzName = macroTimeZone();
+    var parts = new Intl.DateTimeFormat('en-GB', { timeZone:tzName, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(date);
+    var p = {};
+    parts.forEach(function(x){ p[x.type]=x.value; });
+    return {
+      date: p.year + '-' + p.month + '-' + p.day,
+      hour: parseInt(p.hour || '0', 10),
+      minute: parseInt(p.minute || '0', 10),
+      time: (p.hour || '00') + ':' + (p.minute || '00'),
+      label: date.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', timeZone:tzName })
+    };
+  }
   function mapCalendarEvents(raw) {
     var filtered=(raw||[]).filter(function(ev){
       var cur = ev.currency || ev.country || '';
       return (ev.impact==='High'||ev.impact==='Medium')&&['USD','EUR','GBP'].indexOf(cur)!==-1;
     });
     return filtered.map(function(ev){
-      var d=new Date(ev.date);
-      var localMs=d.getTime()+tzOff*3600*1000;
-      var ld=new Date(localMs);
-      var hh=String(ld.getUTCHours()).padStart(2,'0'), mm=String(ld.getUTCMinutes()).padStart(2,'0');
-      var dateStr=ld.toISOString().slice(0,10);
-      var dayLabel=ld.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'});
-      return {time:hh+':'+mm,localH:ld.getUTCHours(),date:dateStr,day:dayLabel,cur:(ev.currency||ev.country||''),name:ev.title,forecast:ev.forecast||'—',previous:ev.previous||'—',actual:ev.actual||null,impact:ev.impact||'Medium'};
+      var lp=calendarLocalParts(new Date(ev.date));
+      return {time:lp.time,localH:lp.hour,localM:lp.minute,date:lp.date,day:lp.label,cur:(ev.currency||ev.country||''),name:ev.title,forecast:ev.forecast||'—',previous:ev.previous||'—',actual:ev.actual||null,impact:ev.impact||'Medium'};
     });
   }
   function setCalendarData(cacheKey, events) {
@@ -5338,23 +5349,25 @@ function MacroTab() {
     {key:'london', label:'London',   start:londonStart, end:nyStart},
     {key:'ny',     label:'New York', start:nyStart,     end:18}
   ];
-  var nowHour = new Date(Date.now() + tzOff*3600*1000).getUTCHours();
+  var nowParts = calendarLocalParts(new Date());
+  var nowHour = nowParts.hour;
   var activeSess = SESSION_RANGES.find(function(s){ return nowHour>=s.start && nowHour<s.end; });
 
-  var todayStr = new Date(Date.now() + tzOff*3600*1000).toISOString().slice(0,10);
+  var todayStr = nowParts.date;
   var weekDates = calData ? Object.keys(calData.byDate).sort() : [];
   var focusDate = calWeek === 'next' ? (weekDates[0] || null) : todayStr;
   var focusDayEvents = calData && focusDate ? (calData.byDate[focusDate]||[]) : [];
+  var focusImportantEvents = focusDayEvents.filter(function(ev){ return ev.impact==='High'||ev.impact==='Medium'; });
   var focusDayLabel = focusDayEvents.length ? focusDayEvents[0].day : (focusDate || '—');
   var scheduleTitle = calWeek === 'next' ? 'Upcoming' : 'This Week';
-  var scheduleHint = calWeek === 'next' ? 'Next-week high-impact schedule' : 'High-impact schedule';
-  var emptyWeekText = calWeek === 'next' ? 'No high-impact events scheduled for next week' : 'No high-impact events this week';
+  var scheduleHint = calWeek === 'next' ? 'Next-week important schedule' : 'Important schedule';
+  var emptyWeekText = calWeek === 'next' ? 'No important events scheduled for next week' : 'No important events this week';
   var sessionEvs = SESSION_RANGES.map(function(s){
     return { session:s, events:focusDayEvents.filter(function(ev){ return ev.localH>=s.start&&ev.localH<s.end; }) };
   });
   var curCol = function(cur){ return cur==='EUR'?C.accent:cur==='GBP'?C.green:C.yellow; };
   var impactStars = function(impact){ return impact==='High'?'\u2605\u2605\u2605':impact==='Medium'?'\u2605\u2605':'\u2605'; };
-  var nowMinutes = new Date(Date.now()+tzOff*3600*1000).getUTCHours()*60+new Date(Date.now()+tzOff*3600*1000).getUTCMinutes();
+  var nowMinutes = nowParts.hour*60+nowParts.minute;
   var Spinner = /*#__PURE__*/React.createElement("span",{style:{color:C.textDim,fontSize:11}},"Loading…");
 
   // verdict bias bar helper (called as function, not component)
@@ -5651,13 +5664,15 @@ function MacroTab() {
           /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,letterSpacing:".08em",textTransform:"uppercase",marginLeft:4}},"USD / EUR / GBP")
         )
       ),
-      calWeek==='this'&&focusDayEvents.filter(function(ev){ return ev.impact==='High'; }).length>0&&
+      calWeek==='this'&&focusImportantEvents.length>0&&
         /*#__PURE__*/React.createElement("div",{style:{background:C.green+"14",border:"1px solid "+C.green+"33",borderRadius:8,padding:"10px 14px",marginBottom:12}},
-          /*#__PURE__*/React.createElement("div",{style:{fontSize:9,letterSpacing:".12em",textTransform:"uppercase",color:C.green,fontWeight:700,marginBottom:8}},"Today\u2019s Focus"),
-          focusDayEvents.filter(function(ev){ return ev.impact==='High'; }).slice(0,3).map(function(ev,i){
+          /*#__PURE__*/React.createElement("div",{style:{fontSize:9,letterSpacing:".12em",textTransform:"uppercase",color:C.green,fontWeight:700,marginBottom:8}},"Today\u2019s Important News"),
+          focusImportantEvents.map(function(ev,i){
+            var isMed=ev.impact==='Medium';
             return /*#__PURE__*/React.createElement("div",{key:i,style:{display:"flex",alignItems:"center",gap:10,padding:"5px 0",borderTop:i>0?"1px solid "+C.border+"33":"none"}},
               /*#__PURE__*/React.createElement("span",{style:{fontFamily:"'Courier New',monospace",fontSize:10,color:C.textDim,minWidth:38}},ev.time),
               /*#__PURE__*/React.createElement("span",{style:{fontSize:8,background:curCol(ev.cur),color:isDark?"#000":"#fff",padding:"2px 5px",borderRadius:2,fontWeight:700,minWidth:28,textAlign:"center"}},ev.cur),
+              /*#__PURE__*/React.createElement("span",{style:{fontSize:8,color:isMed?C.textDim:C.yellow,letterSpacing:"-1px",minWidth:22}},impactStars(ev.impact)),
               /*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:C.text,flex:1}},ev.name),
               ev.forecast&&ev.forecast!=='—'&&/*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:C.textDim,fontFamily:"'Courier New',monospace",whiteSpace:"nowrap"}},"F: "+ev.forecast)
             );

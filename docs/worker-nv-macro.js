@@ -220,47 +220,115 @@ export default {
 
     /* ── /ff-calendar ── */
     if (path === '/ff-calendar') {
+      const dbg = url.searchParams.get('debug') === '1';
+      const info = {};
       try {
-        // 1. TradingView Economic Calendar — includes actuals for past events
         const nextWeek = url.searchParams.get('next') === '1';
         const now = new Date();
-        const dow = now.getUTCDay(); // 0=Sun
+        const dow = now.getUTCDay();
         const daysBack = dow === 0 ? 6 : dow - 1;
         const weekStart = new Date(now.getTime() - daysBack * 86400000 + (nextWeek ? 7 * 86400000 : 0));
         weekStart.setUTCHours(0, 0, 0, 0);
         const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 3600000);
-        const tvUrl = `https://economic-calendar.tradingview.com/events?from=${weekStart.toISOString()}&to=${weekEnd.toISOString()}&countries=US,EU,GB`;
-        const tvRes = await fetch(tvUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': 'application/json, text/plain, */*',
-            'Origin': 'https://www.tradingview.com',
-            'Referer': 'https://www.tradingview.com/',
-          }
-        }).then(r => r.ok ? r.json() : null).catch(() => null);
 
-        if (tvRes && Array.isArray(tvRes.result) && tvRes.result.length > 0) {
-          const events = tvRes.result
-            .filter(e => e.importance === 3 && ['US', 'EU', 'GB'].includes(e.country))
-            .map(e => ({
+        // Check Cloudflare Cache first (avoids hammering upstream sources)
+        const cacheKey = new Request(`https://cache.nv-macro/ff-calendar-v2?week=${nextWeek ? 'next' : 'this'}`);
+        const cachedResp = await caches.default.match(cacheKey);
+        if (cachedResp && !dbg) return cachedResp;
+
+        // 1. TradingView Economic Calendar — includes actuals for past events
+        let tvEvents = null;
+        try {
+          const tvUrl = `https://economic-calendar.tradingview.com/events?from=${weekStart.toISOString()}&to=${weekEnd.toISOString()}&countries=US,EU,GB`;
+          const tvResp = await fetch(tvUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Accept': 'application/json, text/plain, */*',
+              'Origin': 'https://www.tradingview.com',
+              'Referer': 'https://www.tradingview.com/',
+            }
+          });
+          info.tvStatus = tvResp.status;
+          const tvData = await tvResp.json().catch(() => null);
+          info.tvResultLen = Array.isArray(tvData?.result) ? tvData.result.length : typeof tvData;
+          if (tvData && Array.isArray(tvData.result) && tvData.result.length > 0) {
+            // Inspect first event to detect importance format
+            const sample = tvData.result[0];
+            info.tvSample = { importance: sample?.importance, country: sample?.country, currency: sample?.currency };
+            // TradingView uses importance: 1=high, 2=medium, 3=low (inverted scale)
+            tvEvents = tvData.result.filter(e => {
+              const imp = e.importance;
+              const impText = String(e.importance).toLowerCase();
+              const isImportant = imp === 1 || imp === '1' || imp === 2 || imp === '2' || impText === 'high' || impText === 'medium';
+              const country = String(e.country || '').toUpperCase();
+              const currency = String(e.currency || '').toUpperCase();
+              return isImportant && (['US', 'EU', 'GB', 'USD', 'EUR', 'GBP'].includes(country) || ['USD', 'EUR', 'GBP'].includes(currency));
+            }).map(e => ({
               title:    e.title,
               date:     e.date,
               currency: e.currency || (e.country === 'US' ? 'USD' : e.country === 'EU' ? 'EUR' : 'GBP'),
-              impact:   'High',
+              impact:   (e.importance === 2 || e.importance === '2' || String(e.importance).toLowerCase() === 'medium') ? 'Medium' : 'High',
               forecast: e.forecast != null ? String(e.forecast) : '',
               previous: e.previous != null ? String(e.previous) : '',
               actual:   e.actual   != null ? String(e.actual)   : '',
             }));
-          return json(events);
+            info.tvFiltered = tvEvents.length;
+          }
+        } catch (tvErr) { info.tvError = tvErr.message; }
+
+        if (tvEvents && tvEvents.length > 0) {
+          const resp = json(tvEvents);
+          await caches.default.put(cacheKey, resp.clone());
+          if (dbg) return json({ source: 'tradingview', count: tvEvents.length, info, events: tvEvents });
+          return resp;
         }
 
-        // 2. Fallback: FF Calendar static JSON (no actuals)
+        // 2. FF Calendar CDN — full browser headers, parse even on non-2xx
         const ffUrl = nextWeek
           ? 'https://nfs.faireconomy.media/ff_calendar_nextweek.json'
           : 'https://nfs.faireconomy.media/ff_calendar_thisweek.json';
-        const r = await fetch(ffUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        return json(await r.json());
+        let ffEvents = null;
+        try {
+          const ffResp = await fetch(ffUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'Accept': 'application/json, text/plain, */*',
+              'Accept-Language': 'en-US,en;q=0.9',
+              'Referer': 'https://www.forexfactory.com/',
+              'sec-fetch-dest': 'empty',
+              'sec-fetch-mode': 'cors',
+              'sec-fetch-site': 'cross-site',
+            }
+          });
+          info.ffStatus = ffResp.status;
+          const ffRaw = await ffResp.json().catch(() => null);
+          info.ffLen = Array.isArray(ffRaw) ? ffRaw.length : typeof ffRaw;
+          if (Array.isArray(ffRaw) && ffRaw.length > 0) {
+            ffEvents = ffRaw.map(e => ({
+              title:    e.title,
+              date:     e.date,
+              currency: e.currency || e.country || '',
+              impact:   e.impact,
+              forecast: e.forecast != null ? String(e.forecast) : '',
+              previous: e.previous != null ? String(e.previous) : '',
+              actual:   e.actual   != null ? String(e.actual)   : '',
+            }));
+          }
+        } catch (ffErr) { info.ffError = ffErr.message; }
+
+        if (ffEvents && ffEvents.length > 0) {
+          const resp = new Response(JSON.stringify(ffEvents), {
+            headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'max-age=3600' }
+          });
+          await caches.default.put(cacheKey, resp.clone());
+          if (dbg) return json({ source: 'ff-cdn', count: ffEvents.length, info, events: ffEvents });
+          return resp;
+        }
+
+        if (dbg) return json({ source: 'none', info });
+        return json([]);
       } catch (e) {
+        if (dbg) return json({ source: 'exception', error: e.message, info }, 500);
         return json({ error: 'calendar unavailable' }, 500);
       }
     }
